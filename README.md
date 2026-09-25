@@ -127,6 +127,25 @@ Este repositório foi criado pela própria Vesta, pelo caminho estrutural. Os ar
 **Execução**: cada etapa tem um commit `test(etapa N)`, com os testes vermelhos, e um
 `feat(etapa N)`, com a implementação que os deixa verdes.
 
+O histórico da execução deste repositório:
+
+```
+1cd71aa chore: repositório nasce com a Vesta copiada de ~/.claude, spec, pesquisa e plano
+44a623f test(etapa 1): Plugin e hooks dentro do repositório
+c6c19bf feat(etapa 1): Plugin e hooks dentro do repositório
+a0ca5b6 test(etapa 2): Instalador
+978c4ed feat(etapa 2): Instalador
+610bcd3 chore: ignora o cache local do graft
+b1121ea test(etapa 3): README e verificação da documentação
+9e1be3f feat(etapa 3): README e verificação da documentação
+b8d2da8 test(etapa 4): Como funciona por dentro, dependências e limites
+450034b feat(etapa 4): Como funciona por dentro, dependências e limites
+10b48c2 test(etapa 5): História e mockup de demonstração
+354652e feat(etapa 5): História e mockup de demonstração
+d8e87a0 test(etapa 6): A troca real
+e70faf9 test(etapa 6): a comparação com o original pula o que saiu do claude-tooling
+```
+
 Este exemplo não tem tela. Quando tem, a fase 4 produz antes do plano um mockup em HTML que você
 abre no navegador e aprova; o caminho dele vai no plano e no estado. Plano com etapa de tela e
 sem mockup commitado não começa: o script recusa iniciar a execução.
@@ -139,7 +158,7 @@ Como a Vesta foi decidida, com os registros originais, está em
 ## Instalação
 
 ```
-git clone <url do repositório> ~/Code/vesta
+git clone https://github.com/luccas-silveira/vesta.git ~/Code/vesta
 cd ~/Code/vesta
 ./install.sh
 ```
