@@ -1,0 +1,170 @@
+<!doctype html>
+<!-- Hallmark · pre-emit critique: P4 H4 E4 S4 R5 V3 — tokens herdados de claude-tooling/panel/DESIGN.md -->
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Vesta · claude-tooling</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Saira:wght@400;500&family=IBM+Plex+Mono&display=swap" rel="stylesheet">
+<style>
+:root{
+  --ground:oklch(0.15 0.004 250); --chrome:oklch(0.113 0.003 250);
+  --veu:rgba(0,0,0,0.42); --veu-leve:rgba(0,0,0,0.20); --veu-leitura:rgba(0,0,0,0.55);
+  --fio:oklch(0.38 0.005 250); --fio-forte:oklch(0.50 0.005 250);
+  --ink:oklch(0.93 0.003 250); --ink-dim:oklch(0.76 0.004 250); --ink-faint:oklch(0.63 0.005 250);
+  --signal:oklch(0.78 0.068 155); --signal-dim:oklch(0.58 0.05 155); --alert:oklch(0.68 0.10 30);
+  --font-ui:Saira,ui-sans-serif,system-ui,sans-serif; --font-data:"IBM Plex Mono",ui-monospace,Menlo,monospace;
+  --e1:4px;--e2:8px;--e3:12px;--e4:16px;--e6:24px;--e8:32px;
+}
+*{box-sizing:border-box;margin:0}
+html,body{overflow-x:clip}
+body{background:var(--ground);color:var(--ink);font:400 0.8125rem/1.45 var(--font-ui);font-variant-numeric:tabular-nums;
+  background-image:linear-gradient(var(--veu-leve) 1px,transparent 1px),linear-gradient(90deg,var(--veu-leve) 1px,transparent 1px);background-size:24px 24px}
+.label{font-size:0.6875rem;font-weight:500;letter-spacing:0.09em;text-transform:uppercase;color:var(--ink-faint)}
+.mono{font-family:var(--font-data)}
+header{background:var(--chrome);border-bottom:1px solid var(--fio);padding:var(--e3) var(--e4);display:flex;gap:var(--e4);align-items:baseline;flex-wrap:wrap}
+header h1{font-size:1rem;font-weight:500}
+main{max-width:1200px;margin:0 auto;padding:var(--e6) var(--e4);display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.3fr);gap:var(--e6)}
+@media (max-width:820px){main{grid-template-columns:minmax(0,1fr)}}
+section{background:var(--veu);border:1px solid var(--fio);padding:var(--e4)}
+section+section{margin-top:var(--e4)}
+h2{font-size:0.875rem;font-weight:500;margin-bottom:var(--e3);overflow-wrap:anywhere}
+.momento{display:flex;gap:var(--e2);align-items:center;margin-bottom:var(--e4);font-size:0.875rem;font-weight:500}
+.ponto{width:8px;height:8px;border-radius:50%;background:var(--ink-faint);flex:none}
+.rodando .ponto{background:var(--signal)} .travada .ponto,.ilegivel .ponto{background:var(--alert)}
+.travada,.ilegivel{color:var(--alert)}
+.etapas{list-style:none;padding:0;border-top:1px solid var(--fio)}
+.etapas li{display:grid;grid-template-columns:2.5em minmax(0,1fr) auto;gap:var(--e3);padding:var(--e3) 0;border-bottom:1px solid var(--fio);align-items:baseline}
+.etapas .id{color:var(--ink-faint)}
+.etapas .prova{color:var(--ink-faint);font-size:0.75rem;white-space:nowrap}
+.etapas .feita .prova{color:var(--signal-dim)}
+.etapas .atual{color:var(--ink)} .etapas .atual .id{color:var(--signal)}
+.etapas .pendente .titulo{color:var(--ink-dim)}
+.etapas .travada-e .prova{color:var(--alert)}
+.trilha{display:flex;flex-wrap:wrap;gap:0;border:1px solid var(--fio)}
+.trilha button{flex:1 1 90px;background:transparent;border:0;border-right:1px solid var(--fio);color:var(--ink);font:500 0.6875rem/1 var(--font-ui);letter-spacing:0.09em;text-transform:uppercase;padding:var(--e3) var(--e2);cursor:pointer;text-align:left;white-space:nowrap}
+.trilha button:last-child{border-right:0}
+.trilha button[aria-pressed=true]{background:var(--veu-leitura);box-shadow:inset 0 -2px 0 var(--signal)}
+.trilha button:disabled{color:var(--fio-forte);cursor:default}
+.trilha small{display:block;margin-top:var(--e1);font:400 0.6875rem var(--font-data);letter-spacing:0;text-transform:none;color:var(--ink-faint)}
+.leitor{background:var(--veu-leitura);margin-top:var(--e4);padding:var(--e6);border:1px solid var(--fio);max-height:70vh;overflow:auto}
+.leitor h1{font-size:1rem;font-weight:500;margin-bottom:var(--e3)} .leitor h2{margin-top:var(--e4)}
+.leitor p,.leitor li{color:var(--ink-dim);margin-bottom:var(--e2);max-width:68ch}
+.leitor code{font-family:var(--font-data);color:var(--ink)}
+.features{list-style:none;padding:0}
+.features li{display:grid;grid-template-columns:6.5em minmax(0,1fr) auto;gap:var(--e3);padding:var(--e3) 0;border-bottom:1px solid var(--fio);cursor:pointer}
+.features li:hover{color:var(--ink)} .features .data{color:var(--ink-faint)}
+.passos{font-family:var(--font-data);color:var(--ink-faint);letter-spacing:0.2em}
+.passos b{color:var(--signal-dim);font-weight:400}
+.aviso{border:1px solid var(--alert);color:var(--alert);padding:var(--e3);margin-bottom:var(--e4)}
+.estados{position:fixed;bottom:0;left:0;right:0;background:var(--chrome);border-top:1px solid var(--fio);padding:var(--e2) var(--e4);display:flex;gap:var(--e2);flex-wrap:wrap;align-items:center}
+.estados button{background:transparent;border:1px solid var(--fio);color:var(--ink-faint);font:500 0.6875rem var(--font-ui);padding:3px 12px;cursor:pointer;white-space:nowrap}
+.estados button[aria-pressed=true]{color:var(--ink);border-color:var(--fio-forte)}
+body{padding-bottom:64px}
+[hidden]{display:none!important}
+</style>
+</head>
+<body>
+<header>
+  <h1>claude-tooling</h1>
+  <span class="label">Vesta</span>
+  <span class="mono" style="color:var(--ink-faint);margin-left:auto">atualizado há 2 s</span>
+</header>
+
+<main>
+  <div>
+    <section id="execucao">
+      <div class="aviso" data-so="ilegivel">O estado da execução está ilegível (<span class="mono">.claude/vesta/estado.json</span>). O resto do painel continua valendo.</div>
+      <div class="momento" id="momento"><span class="ponto"></span><span id="momento-texto"></span></div>
+      <h2 data-nao="vazio ilegivel">Painel da Vesta</h2>
+      <ol class="etapas" id="etapas" data-nao="vazio ilegivel"></ol>
+    </section>
+
+    <section id="lista" data-so="vazio ilegivel">
+      <h2>Features</h2>
+      <ul class="features">
+        <li><span class="data mono">2026-09-25</span><span>Painel da Vesta</span><span class="passos"><b>●●●●</b>○</span></li>
+        <li><span class="data mono">2026-09-25</span><span>Espelho do Claude</span><span class="passos"><b>●●</b>○○○</span></li>
+        <li><span class="data mono">2026-08-14</span><span>Painel por projeto</span><span class="passos"><b>●●</b>○○<b>●</b></span></li>
+      </ul>
+    </section>
+  </div>
+
+  <div>
+    <section>
+      <h2>Painel da Vesta <span class="mono" style="color:var(--ink-faint);font-weight:400">· 2026-09-25</span></h2>
+      <div class="trilha" role="group" aria-label="Documentos da feature">
+        <button aria-pressed="false" data-doc="spec">Spec<small>design.md</small></button>
+        <button aria-pressed="false" data-doc="pesquisa">Pesquisa<small>research.md</small></button>
+        <button aria-pressed="false" data-doc="grill">Grill<small>13 decisões</small></button>
+        <button aria-pressed="false" data-doc="mockup">Mockup<small>index.html</small></button>
+        <button aria-pressed="true" data-doc="plano">Plano<small>6 etapas</small></button>
+      </div>
+      <article class="leitor" id="leitor"></article>
+    </section>
+  </div>
+</main>
+
+<nav class="estados" aria-label="Estados do mockup">
+  <span class="label">Estado</span>
+  <button data-estado="rodando" aria-pressed="true">Rodando</button>
+  <button data-estado="plano">Esperando plano</button>
+  <button data-estado="pausada">Pausada</button>
+  <button data-estado="travada">Travada</button>
+  <button data-estado="concluida">Concluída</button>
+  <button data-estado="vazio">Sem execução</button>
+  <button data-estado="ilegivel">Estado ilegível</button>
+</nav>
+
+<script>
+const etapas = [
+  ['1','painel.py lê estado e agrupa features','feita','vermelho → verde','a1c3e02'],
+  ['2','Servidor local com rotas /estado e /doc','feita','vermelho → verde','5b7f210'],
+  ['3','Página única com execução, trilha e leitor','pendente','',''],
+  ['4','hook-inicio sobe o painel','pendente','',''],
+  ['5','Remoção do wayfinder e do painel antigo','pendente','',''],
+  ['6','ADR e documentação','pendente','',''],
+];
+const momentos = {
+  rodando:['rodando','Rodando na etapa 3 de 6'],
+  plano:['','Esperando aprovação do plano'],
+  pausada:['','Pausada na etapa 3 — limite de uso'],
+  travada:['travada','Travada na etapa 3 depois de 3 tentativas'],
+  concluida:['rodando','Concluída — 6 de 6 etapas com prova'],
+  vazio:['','Nenhuma execução neste projeto'],
+  ilegivel:['ilegivel','Estado ilegível'],
+};
+const docs = {
+  spec:'<h1>Painel da Vesta</h1><h2>Resultado</h2><p>Abrir qualquer projeto com a Vesta em uso e ver, sem fazer nada, em que ponto está a execução e ler os documentos da feature.</p><h2>Arquitetura</h2><p>Um script Python, só biblioteca padrão, em <code>skill/scripts/painel.py</code>, com um servidor HTTP local e uma página HTML única embutida.</p>',
+  pesquisa:'<h1>Pesquisa — painel da Vesta</h1><h2>A1 — O pre-commit do claude-tooling mora dentro de panel/</h2><p>Apagar o painel desliga a única checagem antes de commit do claude-tooling.</p><h2>A4 — O teste do plugin só aceita hooks que chamam vesta.py</h2><p>O painel sobe pelo hook de início de sessão que a Vesta já tem.</p>',
+  grill:'<h1>Decisões do grill</h1><p><b>A2</b> — mapas reais do wayfinder em outros projetos ficam onde estão; só o <code>panel/</code> sai.</p><p><b>A1</b> — o pre-commit do claude-tooling morre com o painel.</p><p><b>A6</b> — só o endereço, sem abrir o navegador.</p>',
+  mockup:'<h1>Mockup</h1><p>Abre em aba própria: <code>docs/vesta/mockups/2026-09-25-painel-da-vesta/index.html</code></p>',
+  plano:'<h1>Plano — painel da Vesta</h1><h2>Etapa 3 — Página única com execução, trilha e leitor</h2><p>A página busca <code>/estado</code> a cada 3 segundos e renderiza o markdown com o <code>marked</code> servido junto.</p>',
+};
+function render(estado){
+  document.querySelectorAll('[data-so]').forEach(el=>el.hidden=!el.dataset.so.split(' ').includes(estado));
+  document.querySelectorAll('[data-nao]').forEach(el=>el.hidden=el.dataset.nao.split(' ').includes(estado));
+  const [cls,txt]=momentos[estado]; const m=document.getElementById('momento');
+  m.className='momento '+cls; document.getElementById('momento-texto').textContent=txt;
+  const lista=document.getElementById('etapas'); lista.innerHTML='';
+  etapas.forEach(([id,t,st,p,c],i)=>{
+    let s=st,prova=p?p+'  '+c:'—';
+    if(estado==='concluida'){s='feita';prova=p||'vermelho → verde';}
+    if(estado==='plano'){s='pendente';prova='—';}
+    if(i===2&&estado==='travada'){s='travada-e';prova='3 tentativas';}
+    const li=document.createElement('li');
+    li.className=s+(i===2&&['rodando','pausada'].includes(estado)?' atual':'');
+    li.innerHTML=`<span class="id mono">${id}</span><span class="titulo">${t}</span><span class="prova mono">${prova}</span>`;
+    lista.append(li);
+  });
+  document.querySelectorAll('.estados button').forEach(b=>b.setAttribute('aria-pressed',b.dataset.estado===estado));
+}
+function abrir(d){document.getElementById('leitor').innerHTML=docs[d];
+  document.querySelectorAll('.trilha button').forEach(b=>b.setAttribute('aria-pressed',b.dataset.doc===d));}
+document.querySelectorAll('.estados button').forEach(b=>b.onclick=()=>render(b.dataset.estado));
+document.querySelectorAll('.trilha button').forEach(b=>b.onclick=()=>abrir(b.dataset.doc));
+render('rodando'); abrir('plano');
+</script>
+</body>
+</html>
