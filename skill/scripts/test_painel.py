@@ -10,8 +10,13 @@ import json
 import os
 import subprocess
 import sys
+import socket
 import tempfile
+import time
 import unittest
+import urllib.error
+import urllib.parse
+import urllib.request
 from unittest import mock
 
 AQUI = os.path.dirname(os.path.abspath(__file__))
@@ -373,6 +378,91 @@ class DadosSessao(SessaoBase):
         d = painel.dados(self.r)
         self.assertIn('sessao', d)
         self.assertIsNone(d['sessao'])
+
+
+def porta_livre():
+    with socket.socket() as s:
+        s.bind(('127.0.0.1', 0))
+        return s.getsockname()[1]
+
+
+class Servidor(Base):
+    def setUp(self):
+        super().setUp()
+        self.arquivo('docs/vesta/specs/x.md', '# Spec X\ncorpo')
+        self.porta = porta_livre()
+        self.proc = subprocess.Popen([sys.executable, os.path.join(AQUI, 'painel.py'), 'servir',
+                                      self.r, str(self.porta)],
+                                     stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        self.addCleanup(self.proc.wait)
+        self.addCleanup(self.proc.kill)
+        fim = time.time() + 5
+        while True:
+            try:
+                socket.create_connection(('127.0.0.1', self.porta), timeout=0.2).close()
+                break
+            except OSError:
+                if time.time() > fim or self.proc.poll() is not None:
+                    self.fail('servidor não abriu a porta')
+                time.sleep(0.05)
+
+    def get(self, caminho):
+        try:
+            with urllib.request.urlopen(f'http://127.0.0.1:{self.porta}{caminho}', timeout=5) as r:
+                return r.status, r.headers.get('Content-Type', ''), r.read()
+        except urllib.error.HTTPError as e:
+            return e.code, e.headers.get('Content-Type', ''), e.read()
+
+    def test_estado_devolve_dados_da_raiz(self):
+        st, _, corpo = self.get('/estado')
+        self.assertEqual(st, 200)
+        self.assertEqual(json.loads(corpo), json.loads(json.dumps(painel.dados(self.r))))
+
+    def test_doc_devolve_texto_do_arquivo(self):
+        st, _, corpo = self.get('/doc?caminho=docs/vesta/specs/x.md')
+        self.assertEqual((st, corpo.decode()), (200, '# Spec X\ncorpo'))
+
+    def test_doc_recusado_por_doc_seguro_e_404(self):
+        segredo = os.path.join(os.path.dirname(self.r), 'segredo-painel.txt')
+        for c in ('docs/vesta/../../segredo-painel.txt', urllib.parse.quote(segredo),
+                  'docs/vesta/specs/nao-existe.md', 'docs/vesta/specs'):
+            with self.subTest(c):
+                self.assertEqual(self.get('/doc?caminho=' + c)[0], 404)
+
+    def test_raiz_serve_painel_html(self):
+        st, tipo, corpo = self.get('/')
+        self.assertEqual(st, 200)
+        self.assertTrue(tipo.startswith('text/html'), tipo)
+        with open(os.path.join(AQUI, 'painel.html'), 'rb') as f:
+            self.assertEqual(corpo, f.read())
+
+    def test_marked_js(self):
+        st, _, corpo = self.get('/marked.js')
+        self.assertEqual(st, 200)
+        with open(os.path.join(AQUI, 'marked.js'), 'rb') as f:
+            self.assertEqual(corpo, f.read())
+
+    def test_outra_rota_e_404(self):
+        for c in ('/nada', '/painel.py', '/painel.html/x', '/estado/x', '/../painel.py'):
+            with self.subTest(c):
+                self.assertEqual(self.get(c)[0], 404)
+
+    def test_quem_identifica_a_raiz(self):
+        st, _, corpo = self.get('/quem')
+        self.assertEqual((st, corpo.decode().strip()), (200, f'vesta-painel {self.r}'))
+
+    def test_escuta_so_em_127_0_0_1(self):
+        ips = [ip for ip in socket.gethostbyname_ex(socket.gethostname())[2]
+               if not ip.startswith('127.')]
+        for ip in ips:
+            with self.subTest(ip), self.assertRaises(OSError):
+                socket.create_connection((ip, self.porta), timeout=0.5).close()
+
+    def test_porta_ocupada_sai_com_zero_sem_erro(self):
+        p = subprocess.run([sys.executable, os.path.join(AQUI, 'painel.py'), 'servir', self.r,
+                            str(self.porta)], capture_output=True, text=True, timeout=5)
+        self.assertEqual((p.returncode, p.stderr), (0, ''))
+        self.assertEqual(self.get('/quem')[0], 200)
 
 
 if __name__ == '__main__':
