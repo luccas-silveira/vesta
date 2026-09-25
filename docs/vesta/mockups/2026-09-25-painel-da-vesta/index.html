@@ -79,6 +79,35 @@ header h1::before{content:"~/";color:var(--ink-faint)}
 .trilha button[aria-pressed=true]{box-shadow:inset 0 -2px 0 var(--signal),0 2px 10px -4px var(--glow)}
 @keyframes pisca{50%{opacity:0}}
 @media (prefers-reduced-motion:reduce){.momento #momento-texto::after{animation:none}}
+/* Tron: ciano como luz, laranja como alerta, fios que brilham, chão em perspectiva */
+:root{
+  --ground:oklch(0.12 0.02 240); --chrome:oklch(0.09 0.02 240);
+  --veu:oklch(0.10 0.025 235 / 0.72); --veu-leitura:oklch(0.08 0.02 235 / 0.85); --veu-leve:oklch(0.80 0.13 210 / 0.06);
+  --fio:oklch(0.55 0.11 215 / 0.45); --fio-forte:oklch(0.80 0.13 210 / 0.8);
+  --ink:oklch(0.95 0.02 210); --ink-dim:oklch(0.80 0.03 215); --ink-faint:oklch(0.62 0.05 220);
+  --signal:oklch(0.85 0.14 205); --signal-dim:oklch(0.68 0.11 210); --alert:oklch(0.74 0.17 55);
+  --glow:oklch(0.85 0.14 205 / 0.55); --glow-alerta:oklch(0.74 0.17 55 / 0.5);
+}
+body{background-color:var(--ground);background-image:none}
+body::after{content:"";position:fixed;left:-50%;right:-50%;bottom:0;height:45vh;pointer-events:none;z-index:0;
+  background-image:linear-gradient(var(--veu-leve) 1px,transparent 1px),linear-gradient(90deg,var(--veu-leve) 1px,transparent 1px);
+  background-size:48px 48px;transform:perspective(420px) rotateX(62deg);transform-origin:bottom;
+  mask-image:linear-gradient(to top,#000 10%,transparent 90%);-webkit-mask-image:linear-gradient(to top,#000 10%,transparent 90%)}
+main,header{position:relative;z-index:1}
+header{border-bottom-color:var(--fio-forte);box-shadow:0 1px 14px -4px var(--glow)}
+section{border-color:var(--fio);box-shadow:0 0 0 1px oklch(0.80 0.13 210 / 0.08),0 0 18px -8px var(--glow),inset 0 0 24px -16px var(--glow)}
+section h2{color:var(--signal);text-shadow:0 0 10px var(--glow)}
+h2::before{color:var(--signal-dim)}
+.travada .ponto,.ilegivel .ponto{box-shadow:0 0 8px var(--glow-alerta)}
+.travada #momento-texto,.ilegivel #momento-texto{text-shadow:0 0 12px var(--glow-alerta)}
+.aviso{box-shadow:0 0 16px -6px var(--glow-alerta)}
+.etapas .atual{background:linear-gradient(90deg,oklch(0.85 0.14 205 / 0.10),transparent 70%)}
+.etapas .atual .titulo{text-shadow:0 0 8px var(--glow)}
+.trilha{border-color:var(--fio-forte)}
+.trilha button:not(:disabled):hover{color:var(--signal)}
+.features li:hover{color:var(--signal);text-shadow:0 0 8px var(--glow)}
+.estados{border-top-color:var(--fio-forte);box-shadow:0 -1px 14px -4px var(--glow);z-index:6}
+.estados button[aria-pressed=true]{color:var(--signal);border-color:var(--signal);box-shadow:0 0 8px -2px var(--glow)}
 </style>
 </head>
 <body>
