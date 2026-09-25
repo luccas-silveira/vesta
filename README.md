@@ -91,6 +91,8 @@ os testes precisam passar (`prova teste`); só então a etapa é concluída. O s
 hooks de `skill/hooks/hooks.json` não deixam a sessão parar no meio. Saída: um commit de teste
 e um de implementação por etapa. Para na **parada 2**: você testa a feature.
 
+Para os detalhes: [como funciona por dentro](docs/como-funciona.md), [dependências](docs/dependencias.md) e [limites conhecidos](docs/limites.md).
+
 ## Exemplo de ponta a ponta
 
 Este repositório foi criado pela própria Vesta, pelo caminho estrutural. Os artefatos estão em
