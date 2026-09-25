@@ -223,6 +223,8 @@ class DocsEtapa5(unittest.TestCase):
         prefixo = (AVISO + '\n\n').encode()
         for nome, origem in HISTORIA:
             with self.subTest(arquivo=nome):
+                if not os.path.exists(os.path.join(ORIGINAIS, origem)):
+                    continue  # o original saiu do claude-tooling na etapa 6
                 copia = bytes_de(os.path.join(DECISOES, nome))
                 self.assertTrue(copia.startswith(prefixo))
                 self.assertEqual(copia[len(prefixo):], bytes_de(os.path.join(ORIGINAIS, origem)))
