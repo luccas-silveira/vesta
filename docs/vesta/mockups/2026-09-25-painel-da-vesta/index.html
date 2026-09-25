@@ -117,6 +117,21 @@ main{max-width:1440px;grid-template-columns:minmax(180px,240px) minmax(0,1fr) mi
 @keyframes gira{to{transform:rotate(360deg)}}
 @media (prefers-reduced-motion:reduce){.inst .gira{animation:none}}
 .largo{grid-column:auto}
+/* FUI contido: traço fino, sem brilho, verde apagado; o número é o destaque */
+.inst .linha{stroke-width:1;filter:none}
+.inst .linha.fina{stroke:var(--signal-dim)}
+.inst .barra{filter:none;fill:var(--signal-dim)} .inst .barra.fraca{fill:var(--fio-forte)}
+.inst .trilho{fill:oklch(0.82 0.16 148 / 0.12)}
+.inst .area{opacity:.18}
+.inst .varre{opacity:.25}
+.inst .val{color:var(--ink);text-shadow:none;font-weight:300}
+.inst .tick{font-size:8px}
+.inst .fio-g{stroke:oklch(0.82 0.16 148 / 0.14)}
+.inst .gira{stroke:oklch(0.82 0.16 148 / 0.22)}
+.etapas li{grid-template-columns:2em minmax(0,1fr) minmax(0,auto)}
+.etapas .prova{white-space:normal;text-align:right;max-width:9em}
+.trilha button{flex:1 1 0;min-width:0;overflow:hidden;text-overflow:ellipsis}
+@media (max-width:600px){.trilha button{flex:1 1 30%}}
 </style>
 </head>
 <body>
@@ -236,11 +251,11 @@ const NS='http://www.w3.org/2000/svg',el=(t,a)=>{const e=document.createElementN
 (function(){ // medidor: anéis concêntricos
   const g=document.getElementById('gauge'),c=80,pct=0.138;
   const anel=(r,a,cls,w)=>{const L=2*Math.PI*r;g.append(el('circle',{cx:c,cy:c,r,fill:'none',class:cls,'stroke-width':w,'stroke-dasharray':`${L*a} ${L}`,transform:`rotate(-90 ${c} ${c})`}))};
-  anel(70,1,'fio-g',1); anel(62,1,'fio-g',6); anel(62,pct,'linha',6); anel(50,1,'fio-g',1);
+  anel(66,1,'fio-g',1); anel(60,pct,'linha fina',2); anel(52,1,'fio-g',0.5);
   anel(44,0.72,'fio-g gira',1);
   for(let i=0;i<60;i++){const a=i/60*2*Math.PI,l=i%5?3:7;g.append(el('line',{x1:c+74*Math.sin(a),y1:c-74*Math.cos(a),x2:c+(74+l)*Math.sin(a),y2:c-(74+l)*Math.cos(a),class:'fio-g'}))}
-  const t=el('text',{x:c,y:c+6,'text-anchor':'middle',class:'tick',style:'font-size:20px;fill:var(--signal)'});t.textContent='13.8';g.append(t);
-  const u=el('text',{x:c,y:c+22,'text-anchor':'middle',class:'tick'});u.textContent='% USADO';g.append(u);
+  const t=el('text',{x:c,y:c+6,'text-anchor':'middle',class:'tick',style:'font-size:22px;fill:var(--ink)'});t.textContent='13.8';g.append(t);
+  const u=el('text',{x:c,y:c+22,'text-anchor':'middle',class:'tick'});u.textContent='%  ctx';g.append(u);
 })();
 (function(){ // tokens por request, números reais desta sessão
   const d=[63,64,69,71,73,73,74,76,76,78,79,81,81,85,85,86,87,89,89,90,91,93,98,99,99,102,106,110,110,110,111,111,111,112,112,114,114,116,117,121,126,127,128,129,130,131,132,133,134,134,135,136,137,138];
@@ -253,10 +268,10 @@ const NS='http://www.w3.org/2000/svg',el=(t,a)=>{const e=document.createElementN
   g.append(el('line',{x1:0,x2:0,y1:0,y2:H,class:'varre'}));
 })();
 function barras(id,itens,max,un){
-  const g=document.getElementById(id),h=12,gap=4;
+  const g=document.getElementById(id),h=14,gap=4;
   itens.forEach(([n,v,fraca],i)=>{const y=i*(h+gap);
     const t=el('text',{x:0,y:y+h-2,class:'tick'});t.textContent=n;g.append(t);
-    g.append(el('rect',{x:62,y:y+2,width:Math.max(1,v/max*110),height:h-4,class:'barra'+(fraca?' fraca':'')}));
+    g.append(el('rect',{x:62,y:y+h/2-1,width:110,height:1,class:'trilho'}));g.append(el('rect',{x:62,y:y+h/2-1,width:Math.max(1,v/max*110),height:2,class:'barra'+(fraca?' fraca':'')}));
     const v2=el('text',{x:62+v/max*110+6,y:y+h-2,class:'tick'});v2.textContent=v+un;g.append(v2)});
 }
 barras('etapas-g',[['etapa 1',14],['etapa 2',22],['etapa 3',6,true],['etapa 4',0,true]],30,'');
