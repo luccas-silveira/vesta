@@ -161,5 +161,97 @@ class DocsEtapa4(unittest.TestCase):
                 self.assertIn(rel, cobertos)
 
 
+AVISO = '> Registro histórico; o funcionamento atual está em [como-funciona.md](../como-funciona.md).'
+DECISOES = os.path.join(RAIZ, 'docs', 'decisoes')
+ORIGINAIS = os.path.expanduser('~/Code/claude-tooling')
+# Ordem de data = ordem em que o original entrou no git do claude-tooling (git log --diff-filter=A):
+# 0016 às 12:17; 0017, spec, pesquisa e plano no mesmo commit das 14:27 (empate: ordem do plano);
+# 0018 às 15:58. O README de docs/decisoes/ lista os links nesta ordem.
+HISTORIA = [
+    ('0016-execucao-travada-por-provas.md', 'docs/decisions/0016-execucao-travada-por-provas.md'),
+    ('0017-vesta.md', 'docs/decisions/0017-vesta.md'),
+    ('2026-09-25-execucao-travada-spec.md', 'docs/vesta/specs/2026-09-25-spec-flow-execucao-design.md'),
+    ('2026-09-25-execucao-travada-pesquisa.md', 'docs/vesta/research/2026-09-25-spec-flow-execucao-research.md'),
+    ('2026-09-25-execucao-travada-plano.md', 'docs/vesta/plans/2026-09-25-spec-flow-execucao-parte-1.md'),
+    ('0018-mockup-e-frontend-na-vesta.md', 'docs/decisions/0018-mockup-e-frontend-na-vesta.md'),
+]
+MOCKUP = os.path.join(RAIZ, 'docs', 'exemplo', 'mockup', 'index.html')
+EXTERNO = re.compile(
+    r'(?:src|href)\s*=\s*["\']?\s*((?:https?:)?//[^"\'\s>]+)'
+    r'|url\(\s*["\']?((?:https?:)?//[^"\')\s]+)'
+    r'|@import\s+(?:url\()?\s*["\']?((?:https?:)?//[^"\')\s;]+)', re.I)
+PERMITIDOS = ('fonts.googleapis.com', 'fonts.gstatic.com')
+
+
+def bytes_de(caminho):
+    with open(caminho, 'rb') as f:
+        return f.read()
+
+
+def texto_visivel(html):
+    corpo = re.search(r'<body[^>]*>(.*)</body>', html, re.S | re.I)
+    corpo = corpo.group(1) if corpo else ''
+    corpo = re.sub(r'<(script|style)\b.*?</\1\s*>', ' ', corpo, flags=re.S | re.I)
+    corpo = re.sub(r'<!--.*?-->', ' ', corpo, flags=re.S)
+    return re.sub(r'<[^>]+>', ' ', corpo)
+
+
+def externos(html):
+    for m in EXTERNO.finditer(html):
+        alvo = next(g for g in m.groups() if g)
+        host = re.sub(r'^(?:https?:)?//', '', alvo).split('/')[0].lower()
+        if host not in PERMITIDOS:
+            yield alvo
+
+
+class DocsEtapa5(unittest.TestCase):
+    def test_seis_arquivos_existem(self):
+        for nome, _ in HISTORIA:
+            with self.subTest(arquivo=nome):
+                self.assertTrue(os.path.isfile(os.path.join(DECISOES, nome)))
+
+    def test_primeira_linha_e_o_aviso(self):
+        arquivos = [a for a in glob.glob(os.path.join(DECISOES, '*.md')) if os.path.basename(a) != 'README.md']
+        self.assertGreaterEqual(len(arquivos), len(HISTORIA))
+        for arquivo in arquivos:
+            with self.subTest(arquivo=os.path.basename(arquivo)):
+                self.assertEqual(ler(arquivo).split('\n', 1)[0], AVISO)
+
+    def test_resto_igual_ao_original(self):
+        if not os.path.isdir(ORIGINAIS):
+            self.skipTest('~/Code/claude-tooling ausente')
+        prefixo = (AVISO + '\n\n').encode()
+        for nome, origem in HISTORIA:
+            with self.subTest(arquivo=nome):
+                copia = bytes_de(os.path.join(DECISOES, nome))
+                self.assertTrue(copia.startswith(prefixo))
+                self.assertEqual(copia[len(prefixo):], bytes_de(os.path.join(ORIGINAIS, origem)))
+
+    def test_readme_das_decisoes_lista_em_ordem(self):
+        linhas = [l for l in ler(os.path.join(DECISOES, 'README.md')).splitlines() if LINK.search(l)]
+        alvos = [LINK.findall(l) for l in linhas]
+        self.assertTrue(all(len(a) == 1 for a in alvos), 'um link por linha')
+        self.assertEqual([a[0] for a in alvos], [nome for nome, _ in HISTORIA])
+
+    def test_mockup_diz_demonstracao(self):
+        self.assertIn('demonstração', texto_visivel(ler(MOCKUP)))
+
+    def test_mockup_sem_recurso_externo(self):
+        self.assertEqual(list(externos(ler(MOCKUP))), [])
+
+    def test_detectores_do_mockup(self):
+        html = ('<link href="https://fonts.googleapis.com/css2?x"><img src="//cdn.x.com/a.png">'
+                '<style>@import "http://y.com/b.css";a{background:url(https://z.com/c.png)}</style>')
+        self.assertEqual(list(externos(html)), ['//cdn.x.com/a.png', 'http://y.com/b.css', 'https://z.com/c.png'])
+        oculto = '<body><script>"demonstração"</script><p title="demonstração"></p></body>'
+        self.assertNotIn('demonstração', texto_visivel(oculto))
+
+    def test_readme_liga_decisoes_e_mockup(self):
+        links = LINK.findall(ler(README))
+        for rel in ['docs/decisoes/README.md', 'docs/exemplo/mockup/index.html']:
+            with self.subTest(arquivo=rel):
+                self.assertIn(rel, links)
+
+
 if __name__ == '__main__':
     unittest.main()
