@@ -8,6 +8,7 @@ Formatos escolhidos aqui (o plano deixou em aberto):
 """
 import json
 import os
+import re
 import subprocess
 import sys
 import socket
@@ -442,6 +443,13 @@ class Servidor(Base):
         with open(os.path.join(AQUI, 'marked.js'), 'rb') as f:
             self.assertEqual(corpo, f.read())
 
+    def test_doc_html_e_text_html_e_md_nao(self):
+        self.arquivo('docs/vesta/mockups/m/index.html', '<p>oi</p>')
+        st, tipo, corpo = self.get('/doc?caminho=docs/vesta/mockups/m/index.html')
+        self.assertEqual((st, corpo), (200, b'<p>oi</p>'))
+        self.assertTrue(tipo.startswith('text/html'), tipo)
+        self.assertFalse(self.get('/doc?caminho=docs/vesta/specs/x.md')[1].startswith('text/html'))
+
     def test_outra_rota_e_404(self):
         for c in ('/nada', '/painel.py', '/painel.html/x', '/estado/x', '/../painel.py'):
             with self.subTest(c):
@@ -463,6 +471,40 @@ class Servidor(Base):
                             str(self.porta)], capture_output=True, text=True, timeout=5)
         self.assertEqual((p.returncode, p.stderr), (0, ''))
         self.assertEqual(self.get('/quem')[0], 200)
+
+
+class Pagina(unittest.TestCase):
+    TIPOS = ('rodando', 'plano', 'pausada', 'travada', 'concluida', 'vazio', 'ilegivel')
+
+    def setUp(self):
+        with open(os.path.join(AQUI, 'painel.html'), encoding='utf-8') as f:
+            self.h = f.read()
+
+    def test_pontos_de_montagem(self):
+        for i in ('palavra', 'selo', 'cheio', 'etapas', 'leitor', 'arco', 'pontos', 'colunas',
+                  'ferr', 'aviso-sessao'):
+            with self.subTest(i):
+                self.assertRegex(self.h, rf'\bid\s*=\s*["\']?{re.escape(i)}["\'\s>]')
+
+    def test_carrega_marked_e_busca_estado_a_cada_3s(self):
+        self.assertRegex(self.h, r'<script[^>]*\bsrc\s*=\s*["\']?/marked\.js')
+        self.assertRegex(self.h, r'fetch\(\s*["\'`]/estado')
+        self.assertRegex(self.h, r'setInterval\([^;]*\b3000\b|setTimeout\([^;]*\b3000\b')
+
+    def test_uma_regra_de_cor_por_tipo_de_momento(self):
+        for t in self.TIPOS:
+            with self.subTest(t):
+                self.assertRegex(self.h, rf'\[data-estado\s*=\s*["\']?{t}["\']?\]')
+
+    def test_js_atribui_o_tipo_ao_body(self):
+        self.assertRegex(self.h, r'body\.dataset\.estado\s*=|body\.setAttribute\(\s*["\']data-estado')
+
+    def test_nada_de_fora_alem_do_google_fonts(self):
+        hosts = re.findall(r'(?:\b(?:src|href|action)\s*=\s*["\']?|url\(\s*["\']?|@import\s+["\']?'
+                           r'|\b(?:fetch|import)\(\s*["\'`])(?:https?:)?//([^/"\'`\s)>]+)', self.h, re.I)
+        for h in hosts:
+            with self.subTest(h):
+                self.assertIn(h.lower(), ('fonts.googleapis.com', 'fonts.gstatic.com'))
 
 
 if __name__ == '__main__':
