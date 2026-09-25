@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
 """Vesta, painel: dados da execução e das features. Só biblioteca padrão."""
 import glob
+import http.server
+import urllib.parse
 import json
 import os
 import re
@@ -146,3 +148,49 @@ def dados(r):
             'momento': {'tipo': 'ilegivel', 'texto': 'Estado ilegível'} if erro else momento(e),
             'estado': e, 'erro': erro, 'features': fs, 'atual': atual,
             'tempos': tempo_etapas(r, e) if e else {}, 'sessao': sessao(r)}
+
+
+def servir(r, porta):
+    aqui = os.path.dirname(os.path.abspath(__file__))
+    estaticos = {'/': ('painel.html', 'text/html; charset=utf-8'),
+                 '/marked.js': ('marked.js', 'text/javascript; charset=utf-8')}
+
+    class Handler(http.server.BaseHTTPRequestHandler):
+        def log_message(self, *a):
+            pass
+
+        def responder(self, corpo, tipo='text/plain; charset=utf-8', status=200):
+            self.send_response(status)
+            self.send_header('Content-Type', tipo)
+            self.send_header('Content-Length', str(len(corpo)))
+            self.end_headers()
+            self.wfile.write(corpo)
+
+        def do_GET(self):
+            u = urllib.parse.urlsplit(self.path)
+            if u.path == '/estado':
+                return self.responder(json.dumps(dados(r)).encode(), 'application/json')
+            if u.path == '/quem':
+                return self.responder(f'vesta-painel {r}'.encode())
+            if u.path == '/doc':
+                rel = urllib.parse.parse_qs(u.query).get('caminho', [''])[0]
+                p = doc_seguro(r, rel) if rel else None
+                if p:
+                    with open(p, 'rb') as f:
+                        return self.responder(f.read())
+            elif u.path in estaticos:
+                nome, tipo = estaticos[u.path]
+                with open(os.path.join(aqui, nome), 'rb') as f:
+                    return self.responder(f.read(), tipo)
+            self.responder(b'', status=404)
+
+    try:
+        srv = http.server.ThreadingHTTPServer(('127.0.0.1', porta), Handler)
+    except OSError:
+        return 0
+    srv.daemon_threads = True
+    srv.serve_forever()
+
+
+if __name__ == '__main__' and sys.argv[1:2] == ['servir']:
+    sys.exit(servir(os.path.abspath(sys.argv[2]), int(sys.argv[3])))
