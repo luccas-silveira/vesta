@@ -14,7 +14,7 @@
 <style>
 :root{
   --chao:oklch(0.17 0.012 240); --chao-2:oklch(0.145 0.012 240); --placa:oklch(0.21 0.014 240 / 0.55);
-  --traco:oklch(0.62 0.02 230 / 0.28); --traco-forte:oklch(0.72 0.02 230 / 0.55); --ponto:oklch(0.70 0.02 230 / 0.07);
+  --traco:oklch(0.62 0.02 230 / 0.28); --traco-forte:oklch(0.72 0.02 230 / 0.55); --ponto:oklch(0.70 0.02 230 / 0.22);
   --tinta:oklch(0.93 0.008 230); --tinta-2:oklch(0.76 0.012 230); --tinta-3:oklch(0.56 0.015 230);
   --verde:oklch(0.80 0.14 152); --ambar:oklch(0.82 0.14 85); --coral:oklch(0.70 0.15 28); --ciano:oklch(0.80 0.10 215);
   --acento:var(--verde);
@@ -29,10 +29,19 @@ html,body{overflow-x:clip}
 body{min-height:100vh;color:var(--tinta);font:400 13px/1.45 var(--f-micro);
   background:radial-gradient(ellipse at 50% 30%,var(--chao) 0%,var(--chao-2) 75%);padding-bottom:56px}
 /* malha de pontos + cruzes nas interseções maiores */
-body::before{content:"";position:fixed;inset:0;pointer-events:none;
-  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cpath d='M76 80h9M80 76v9' stroke='%23889aa8' stroke-opacity='.14'/%3E%3C/svg%3E"),radial-gradient(var(--ponto) 1px,transparent 1.3px);
-  background-size:320px 320px,24px 24px;
-  -webkit-mask-image:radial-gradient(ellipse at 50% 40%,transparent 30%,#000 85%);mask-image:radial-gradient(ellipse at 50% 40%,transparent 30%,#000 85%)}
+/* fundo liso; a malha só existe onde há dado: dentro dos gráficos, nas réguas das bordas
+   e nas quatro cruzes que marcam os cantos da área de trabalho */
+.borda{position:fixed;top:0;bottom:0;width:7px;pointer-events:none;z-index:0;
+  background:repeating-linear-gradient(to bottom,var(--traco) 0 1px,transparent 1px 8px),
+   repeating-linear-gradient(to bottom,var(--traco-forte) 0 1px,transparent 1px 80px)}
+.borda.e{left:8px}.borda.d{right:8px}
+.borda.d{background-position:0 0}
+main{position:relative}
+.cruz{position:absolute;width:11px;height:11px;pointer-events:none}
+.cruz::before,.cruz::after{content:"";position:absolute;background:var(--tinta-3)}
+.cruz::before{left:5px;top:0;width:1px;height:11px}.cruz::after{top:5px;left:0;height:1px;width:11px}
+.cruz.a{left:9px;top:8px}.cruz.b{right:9px;top:8px}.cruz.c{left:9px;bottom:8px}.cruz.d{right:9px;bottom:8px}
+.inst svg{background-image:radial-gradient(var(--ponto) 1px,transparent 1.3px);background-size:10px 10px}
 .micro{font:500 9.5px/1.3 var(--f-micro);letter-spacing:.08em;text-transform:uppercase;color:var(--tinta-3)}
 .chip{display:inline-block;font:600 11px/1 var(--f-display);letter-spacing:.12em;text-transform:uppercase;padding:4px 7px 3px;background:var(--acento);color:var(--chao-2)}
 .chip.vazado{background:transparent;color:var(--tinta-2);box-shadow:inset 0 0 0 1px var(--traco-forte)}
@@ -129,6 +138,7 @@ svg text{font:500 8.5px var(--f-micro);fill:var(--tinta-3);letter-spacing:.06em}
 </style>
 </head>
 <body data-estado="rodando">
+<div class="borda e"></div><div class="borda d"></div>
 
 <header class="topo">
   <div><div class="micro">vesta // painel de execução</div><h1>claude-tooling</h1></div>
@@ -141,6 +151,7 @@ svg text{font:500 8.5px var(--f-micro);fill:var(--tinta-3);letter-spacing:.06em}
 <div class="linha-topo regua"></div>
 
 <main>
+  <span class="cruz a"></span><span class="cruz b"></span><span class="cruz c"></span><span class="cruz d"></span>
   <aside class="lado">
     <div class="inst sessao">
       <div class="cab"><span class="nome">Contexto</span><span class="micro">ctx // janela</span></div><div class="regua"></div>
