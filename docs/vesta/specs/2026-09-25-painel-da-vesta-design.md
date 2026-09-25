@@ -61,22 +61,40 @@ Sem execução, a página lista as features da mais recente para a mais antiga.
 
 ## Hook
 
-`painel.sh` passa a morar na Vesta e a ser registrado pelo plugin dela. Porta estável por
-projeto, derivada do caminho, como hoje. Sobe `painel.py` em segundo plano quando há Vesta
-no projeto e a porta não está ocupada pelo próprio painel; informa o endereço.
+Sem hook novo nem script bash. O `hook-inicio` que a Vesta já registra passa a subir o
+painel: quando há `docs/vesta/` ou `.claude/vesta/` no projeto, lança `painel.py` em
+segundo plano (`subprocess.Popen` com `start_new_session=True` e saídas em `DEVNULL`) e
+junta o endereço ao aviso. Porta estável por projeto, derivada do caminho, testada com
+`socket`; porta já respondendo com o painel deste projeto não sobe de novo.
 
 ## Remoções
 
 - `~/.claude/skills/wayfinder` e o espelho em `claude-tooling/config/claude/skills/wayfinder`.
-- `claude-tooling/panel/`, o `~/.claude/hooks/painel.sh` e seu registro no `settings.json`.
+- `claude-tooling/panel/` e o `core.hooksPath` do claude-tooling, que apontava para o
+  pre-commit dentro dele (`git config --unset core.hooksPath`), o `~/.claude/hooks/painel.sh` e seu registro no `settings.json`.
 - `~/Code/vesta/panel/` e `~/Code/vesta/docs/wayfinder/` (cópias plantadas pelo hook antigo).
 - `claude-tooling/docs/wayfinder/` vira `claude-tooling/docs/historico/wayfinder/`.
 - Referências ao wayfinder e ao painel no `CLAUDE.md` e `README.md` do claude-tooling.
 - Cópias plantadas em outros projetos (`panel/` com `.versao`, `docs/wayfinder/` só com os
   dois arquivos padrão) são listadas e apagadas com confirmação.
+- `docs/wayfinder/` com mapas reais em outros projetos (evolution, Gabriel Samra, GHL_DOOM,
+  automaster_v2, evolution/graft) fica intocado; só o `panel/` sai.
 
 ## Testes
 
 Funções puras em `painel.py` (agrupar features, montar o momento, validar caminho) com
 testes em `skill/scripts/test_painel.py`, no mesmo estilo de `test_vesta.py`. A página é
 verificada abrindo no navegador contra um estado de exemplo.
+
+## Decisões do grill
+
+- **A2** — mapas reais do wayfinder em outros projetos ficam onde estão; só o `panel/` sai.
+  Motivo: mover mexeria em seis repositórios sem ganho, e o markdown segue legível no editor.
+- **A1** — o pre-commit do claude-tooling morre com o painel. Motivo: ele só testava o painel.
+- **A4** — o painel sobe pelo `hook-inicio` existente, não por hook novo. Motivo:
+  `test/test_plugin.py:28-31,49-52` só aceita os três hooks que chamam `vesta.py`.
+- **A6** — só o endereço, sem abrir o navegador. Motivo: aba nova por projeto vira ruído.
+- **A5, A7-A10, A12, A13** — confirmam a spec: `painel.py` importa de `vesta.py`,
+  `ThreadingHTTPServer`, `marked` salvo junto, tokens do `DESIGN.md` atual, remoção nos dois
+  lados do espelho no mesmo commit.
+- **A11** — um ADR no claude-tooling registra que 0011, 0012 e 0013 foram superados.
