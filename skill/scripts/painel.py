@@ -1,7 +1,11 @@
 #!/usr/bin/env python3
 """Vesta, painel: dados da execução e das features. Só biblioteca padrão."""
+import glob
+import json
 import os
 import re
+from collections import Counter
+from datetime import datetime
 import sys
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
@@ -82,6 +86,54 @@ def doc_seguro(r, rel):
     return p if p.startswith(base + os.sep) and os.path.isfile(p) else None
 
 
+def pasta_sessoes(r):
+    return os.path.join(os.environ['HOME'], '.claude', 'projects',
+                        r.replace('/', '-').replace('.', '-'))
+
+
+def _instante(ts):
+    return datetime.fromisoformat(ts.replace('Z', '+00:00'))
+
+
+def sessao(r):
+    arqs = glob.glob(os.path.join(pasta_sessoes(r), '*.jsonl'))
+    if not arqs:
+        return None
+    usos, saidas, marcas, ferr = {}, {}, [], Counter()
+    with open(max(arqs, key=os.path.getmtime)) as f:
+        for linha in f:
+            try:
+                l = json.loads(linha)
+            except ValueError:
+                continue
+            if not isinstance(l, dict):
+                continue
+            if l.get('timestamp'):
+                marcas.append(l['timestamp'])
+            msg = l.get('message') or {}
+            if l.get('type') != 'assistant' or not isinstance(msg, dict):
+                continue
+            for c in msg.get('content') or []:
+                if isinstance(c, dict) and c.get('type') == 'tool_use':
+                    ferr[re.sub(r'^mcp__.+?__', '', c.get('name', ''))] += 1
+            u = msg.get('usage')
+            if u:
+                rid = l.get('requestId')
+                usos[rid] = (u.get('input_tokens', 0) + u.get('cache_read_input_tokens', 0)
+                             + u.get('cache_creation_input_tokens', 0))
+                saidas[rid] = u.get('output_tokens', 0)
+    if not usos:
+        return None
+    entrada = list(usos.values())
+    return {'inicio': marcas[0], 'fim': marcas[-1],
+            'duracao_s': int((_instante(marcas[-1]) - _instante(marcas[0])).total_seconds()),
+            'requests': len(usos), 'entrada': entrada, 'saida': sum(saidas.values()),
+            'ferramentas': [[n, c] for n, c in sorted(ferr.items(), key=lambda x: (-x[1], x[0]))],
+            'contexto': entrada[-1],
+            # ponytail: heurística, o modelo não fica no registro; ler o modelo se ele passar a constar
+            'janela': 1000000 if max(entrada) > 200000 else 200000}
+
+
 def dados(r):
     erro = None
     try:
@@ -93,4 +145,4 @@ def dados(r):
     return {'projeto': os.path.basename(r),
             'momento': {'tipo': 'ilegivel', 'texto': 'Estado ilegível'} if erro else momento(e),
             'estado': e, 'erro': erro, 'features': fs, 'atual': atual,
-            'tempos': tempo_etapas(r, e) if e else {}}
+            'tempos': tempo_etapas(r, e) if e else {}, 'sessao': sessao(r)}
