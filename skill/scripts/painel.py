@@ -177,7 +177,8 @@ def servir(r, porta):
                 p = doc_seguro(r, rel) if rel else None
                 if p:
                     with open(p, 'rb') as f:
-                        return self.responder(f.read())
+                        return self.responder(f.read(), 'text/html; charset=utf-8'
+                                              if p.endswith('.html') else 'text/plain; charset=utf-8')
             elif u.path in estaticos:
                 nome, tipo = estaticos[u.path]
                 with open(os.path.join(aqui, nome), 'rb') as f:
