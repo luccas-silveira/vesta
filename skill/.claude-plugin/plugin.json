@@ -1,0 +1,5 @@
+{
+  "name": "vesta",
+  "description": "Fluxo padrão para qualquer trabalho criativo — feature nova, componente, funcionalidade, mudança de comportamento. Encadeia spec → pesquisa (codebase + web) → grill com dossiê → mockup aprovado quando há tela → plano em etapas → execução travada por provas. Use ANTES de escrever qualquer código. Dispara em \"/vesta\", \"vamos construir X\", \"quero criar X\", \"adiciona X\", ou qualquer pedido de feature nova.",
+  "version": "1.0.0"
+}
