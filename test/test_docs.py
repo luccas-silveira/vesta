@@ -1,4 +1,5 @@
 """Testes da documentação: README.md e docs/*.md."""
+import ast
 import glob
 import os
 import re
@@ -6,6 +7,8 @@ import unittest
 
 RAIZ = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 README = os.path.join(RAIZ, 'README.md')
+VESTA = os.path.join(RAIZ, 'skill', 'scripts', 'vesta.py')
+NOVOS = ['docs/como-funciona.md', 'docs/dependencias.md', 'docs/limites.md']
 
 LINK = re.compile(r'\[[^\]]*\]\(([^)#\s]+)')
 CRASE = re.compile(r'`([^`\s]+)`')
@@ -104,6 +107,58 @@ class Caminhos(unittest.TestCase):
         for arquivo in arquivos_de_documentacao():
             with self.subTest(arquivo=os.path.relpath(arquivo, RAIZ)):
                 self.assertNotIn('/Users/', ler(arquivo))
+
+
+def constante(nome):
+    return re.search(rf'^{nome}\s*=\s*(\d+)', ler(VESTA), re.M).group(1)
+
+
+def comandos():
+    for no in ast.parse(ler(VESTA)).body:
+        if isinstance(no, ast.Assign) and any(getattr(t, 'id', None) == 'COMANDOS' for t in no.targets):
+            return [k.value for k in no.value.keys]
+
+
+class DocsEtapa4(unittest.TestCase):
+    def texto(self, rel):
+        return ler(os.path.join(RAIZ, rel))
+
+    def test_arquivos_novos_existem(self):
+        for rel in NOVOS:
+            with self.subTest(arquivo=rel):
+                self.assertTrue(os.path.isfile(os.path.join(RAIZ, rel)))
+
+    def test_readme_liga_os_tres(self):
+        links = LINK.findall(ler(README))
+        for rel in NOVOS:
+            with self.subTest(arquivo=rel):
+                self.assertIn(rel, links)
+
+    def test_como_funciona_cita_limites_do_codigo(self):
+        texto = self.texto('docs/como-funciona.md')
+        for nome in ['LIMITE_TENTATIVAS', 'LIMITE_BLOQUEIOS']:
+            with self.subTest(constante=nome):
+                self.assertRegex(texto, rf'(?<!\d){constante(nome)}(?!\d)')
+
+    def test_como_funciona_cita_cada_subcomando(self):
+        texto = self.texto('docs/como-funciona.md')
+        nomes = comandos() + ['silenciar']
+        self.assertGreater(len(nomes), 1)
+        for nome in nomes:
+            with self.subTest(comando=nome):
+                self.assertIn(f'`{nome}`', texto)
+
+    def test_dependencias_cita_ferramentas(self):
+        texto = self.texto('docs/dependencias.md')
+        for nome in ['grill-me', 'hallmark', 'inspo', 'superpowers', 'supacode']:
+            with self.subTest(nome=nome):
+                self.assertIn(nome, texto)
+
+    def test_regras_de_caminho_cobrem_novos(self):
+        cobertos = [os.path.relpath(a, RAIZ) for a in arquivos_de_documentacao()]
+        for rel in NOVOS:
+            with self.subTest(arquivo=rel):
+                self.assertIn(rel, cobertos)
 
 
 if __name__ == '__main__':
