@@ -100,6 +100,23 @@ header h1::before{content:"~/";color:var(--ink-faint)}
 .largo{grid-column:span 2}
 @media (prefers-reduced-motion:reduce){.inst .varre{animation:none;opacity:0}}
 .sessao-off .inst.sessao{display:none}
+/* FUI: instrumentos transparentes nas laterais, informação no centro */
+main{max-width:1440px;grid-template-columns:minmax(180px,240px) minmax(0,1fr) minmax(180px,240px)}
+.centro{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.3fr);gap:var(--e6);align-content:start}
+@media (max-width:1100px){.centro{grid-template-columns:minmax(0,1fr)}}
+@media (max-width:820px){main{grid-template-columns:minmax(0,1fr)}.lado{flex-direction:row;flex-wrap:wrap}.lado .inst{flex:1 1 200px}}
+.lado{display:flex;flex-direction:column;gap:var(--e8)}
+.inst{background:transparent!important;border:0!important;box-shadow:none!important;padding:0 0 0 var(--e3)!important;border-left:1px solid oklch(0.82 0.16 148 / 0.25)!important}
+.inst::after{display:none}
+.inst::before{content:"";position:absolute;left:-1px;top:0;width:1px;height:14px;background:var(--signal)}
+.inst .rot{display:flex;justify-content:space-between;border-bottom:1px solid oklch(0.82 0.16 148 / 0.15);padding-bottom:var(--e1)}
+.inst .rot span{color:var(--ink-faint);letter-spacing:0.06em}
+.inst .val{font-size:2rem;font-weight:400;letter-spacing:0.02em}
+.inst .area{opacity:.55}
+.inst .gira{animation:gira 14s linear infinite;transform-origin:80px 80px;stroke:oklch(0.82 0.16 148 / 0.4)}
+@keyframes gira{to{transform:rotate(360deg)}}
+@media (prefers-reduced-motion:reduce){.inst .gira{animation:none}}
+.largo{grid-column:auto}
 </style>
 </head>
 <body>
@@ -109,15 +126,13 @@ header h1::before{content:"~/";color:var(--ink-faint)}
   <span class="mono" style="color:var(--ink-faint);margin-left:auto">atualizado há 2 s</span>
 </header>
 
-<div class="painel-inst" id="inst">
-  <div class="inst sessao"><div class="rot">contexto</div><svg viewBox="0 0 120 64" id="gauge"></svg><div class="sub mono">138k de 1M · 13,8%</div></div>
-  <div class="inst sessao"><div class="rot">sessão</div><div class="val">42:48</div><div class="sub">54 requests · 32 ferramentas</div><div class="sub">custo: a confirmar</div></div>
-  <div class="inst sessao largo"><div class="rot">tokens por request · entrada</div><svg viewBox="0 0 320 70" id="spark"></svg></div>
-  <div class="inst largo"><div class="rot">tempo por etapa · min</div><svg viewBox="0 0 320 80" id="etapas-g"></svg></div>
-  <div class="inst sessao largo"><div class="rot">ferramentas</div><svg viewBox="0 0 320 80" id="ferr"></svg></div>
-</div>
-<p class="aviso" id="aviso-sessao" style="max-width:1168px;margin:var(--e4) auto 0" hidden>Não deu para ler o registro desta sessão; os instrumentos da sessão ficaram de fora.</p>
 <main>
+  <aside class="lado" id="inst">
+    <div class="inst sessao"><div class="rot">contexto <span>// janela</span></div><svg viewBox="0 0 160 160" id="gauge"></svg><div class="sub">138k / 1M</div></div>
+    <div class="inst sessao"><div class="rot">tokens · entrada <span>// por request</span></div><svg viewBox="0 0 200 90" id="spark"></svg></div>
+  </aside>
+  <div class="centro">
+  <p class="aviso" id="aviso-sessao" hidden>Não deu para ler o registro desta sessão; os instrumentos da sessão ficaram de fora.</p>
   <div>
     <section id="execucao">
       <div class="aviso" data-so="ilegivel">O estado da execução está ilegível (<span class="mono">.claude/vesta/estado.json</span>). O resto do painel continua valendo.</div>
@@ -149,6 +164,12 @@ header h1::before{content:"~/";color:var(--ink-faint)}
       <article class="leitor" id="leitor"></article>
     </section>
   </div>
+  </div>
+  <aside class="lado">
+    <div class="inst sessao"><div class="rot">sessão <span>// t+</span></div><div class="val">42:48</div><div class="sub">054 req · 032 ferr</div></div>
+    <div class="inst"><div class="rot">tempo · etapa <span>// min</span></div><svg viewBox="0 0 200 80" id="etapas-g"></svg></div>
+    <div class="inst sessao"><div class="rot">ferramentas <span>// chamadas</span></div><svg viewBox="0 0 200 90" id="ferr"></svg></div>
+  </aside>
 </main>
 
 <nav class="estados" aria-label="Estados do mockup">
@@ -212,17 +233,18 @@ document.querySelectorAll('.estados button').forEach(b=>b.onclick=()=>render(b.d
 document.querySelectorAll('.trilha button').forEach(b=>b.onclick=()=>abrir(b.dataset.doc));
 render('rodando'); abrir('plano');
 const NS='http://www.w3.org/2000/svg',el=(t,a)=>{const e=document.createElementNS(NS,t);for(const k in a)e.setAttribute(k,a[k]);return e};
-(function(){ // medidor de contexto
-  const g=document.getElementById('gauge'),cx=60,cy=58,r=48,pct=0.138;
-  const arc=(a0,a1)=>{const p=a=>[cx+r*Math.cos(Math.PI*(1-a)),cy-r*Math.sin(Math.PI*(1-a))];const[x0,y0]=p(a0),[x1,y1]=p(a1);return `M${x0} ${y0} A${r} ${r} 0 0 1 ${x1} ${y1}`};
-  g.append(el('path',{d:arc(0,1),class:'fio-g',fill:'none','stroke-width':6}));
-  for(let i=0;i<=10;i++){const a=Math.PI*(1-i/10);g.append(el('line',{x1:cx+(r-9)*Math.cos(a),y1:cy-(r-9)*Math.sin(a),x2:cx+(r-5)*Math.cos(a),y2:cy-(r-5)*Math.sin(a),class:'fio-g'}))}
-  g.append(el('path',{d:arc(0,pct),class:'linha','stroke-width':6}));
-  const t=el('text',{x:cx,y:cy-8,'text-anchor':'middle',class:'tick',style:'font-size:14px;fill:var(--signal)'});t.textContent='14%';g.append(t);
+(function(){ // medidor: anéis concêntricos
+  const g=document.getElementById('gauge'),c=80,pct=0.138;
+  const anel=(r,a,cls,w)=>{const L=2*Math.PI*r;g.append(el('circle',{cx:c,cy:c,r,fill:'none',class:cls,'stroke-width':w,'stroke-dasharray':`${L*a} ${L}`,transform:`rotate(-90 ${c} ${c})`}))};
+  anel(70,1,'fio-g',1); anel(62,1,'fio-g',6); anel(62,pct,'linha',6); anel(50,1,'fio-g',1);
+  anel(44,0.72,'fio-g gira',1);
+  for(let i=0;i<60;i++){const a=i/60*2*Math.PI,l=i%5?3:7;g.append(el('line',{x1:c+74*Math.sin(a),y1:c-74*Math.cos(a),x2:c+(74+l)*Math.sin(a),y2:c-(74+l)*Math.cos(a),class:'fio-g'}))}
+  const t=el('text',{x:c,y:c+6,'text-anchor':'middle',class:'tick',style:'font-size:20px;fill:var(--signal)'});t.textContent='13.8';g.append(t);
+  const u=el('text',{x:c,y:c+22,'text-anchor':'middle',class:'tick'});u.textContent='% USADO';g.append(u);
 })();
 (function(){ // tokens por request, números reais desta sessão
   const d=[63,64,69,71,73,73,74,76,76,78,79,81,81,85,85,86,87,89,89,90,91,93,98,99,99,102,106,110,110,110,111,111,111,112,112,114,114,116,117,121,126,127,128,129,130,131,132,133,134,134,135,136,137,138];
-  const g=document.getElementById('spark'),W=320,H=62,max=150;
+  const g=document.getElementById('spark'),W=200,H=80,max=150;
   g.innerHTML='<defs><linearGradient id="gArea" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="oklch(0.82 0.16 148 / 0.35)"/><stop offset="1" stop-color="oklch(0.82 0.16 148 / 0)"/></linearGradient></defs>';
   [0,50,100,150].forEach(v=>{const y=H-v/max*H;g.append(el('line',{x1:0,x2:W,y1:y,y2:y,class:'fio-g'}));const t=el('text',{x:W,y:y-2,'text-anchor':'end',class:'tick'});t.textContent=v+'k';g.append(t)});
   const pts=d.map((v,i)=>[i/(d.length-1)*W,H-v/max*H]);
@@ -234,8 +256,8 @@ function barras(id,itens,max,un){
   const g=document.getElementById(id),h=12,gap=4;
   itens.forEach(([n,v,fraca],i)=>{const y=i*(h+gap);
     const t=el('text',{x:0,y:y+h-2,class:'tick'});t.textContent=n;g.append(t);
-    g.append(el('rect',{x:70,y:y+2,width:Math.max(1,v/max*210),height:h-4,class:'barra'+(fraca?' fraca':'')}));
-    const v2=el('text',{x:70+v/max*210+6,y:y+h-2,class:'tick'});v2.textContent=v+un;g.append(v2)});
+    g.append(el('rect',{x:62,y:y+2,width:Math.max(1,v/max*110),height:h-4,class:'barra'+(fraca?' fraca':'')}));
+    const v2=el('text',{x:62+v/max*110+6,y:y+h-2,class:'tick'});v2.textContent=v+un;g.append(v2)});
 }
 barras('etapas-g',[['etapa 1',14],['etapa 2',22],['etapa 3',6,true],['etapa 4',0,true]],30,'');
 barras('ferr',[['Bash',22],['Write',3],['Edit',3],['Agent',2],['Skill',1]],22,'');
