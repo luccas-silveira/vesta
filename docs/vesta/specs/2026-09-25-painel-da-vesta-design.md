@@ -52,6 +52,19 @@ Cada etapa mostra título, status, se a prova de teste tem vermelho e resultado,
 
 Sem execução, a página lista as features da mais recente para a mais antiga.
 
+## Instrumentos (pedido no mockup)
+
+Em volta da execução, um anel de instrumentos em estilo cockpit, mais cinematográfico que o
+resto da página. Duas fontes:
+
+- **Execução** (estado + `git log`): tempo por etapa, tentativas até a prova, commits no tempo.
+- **Sessão do Claude** (o `.jsonl` mais recente do projeto em `~/.claude/projects/<caminho>/`):
+  tokens por request (entrada, cache, saída), custo estimado, duração, número de chamadas de
+  ferramenta e as mais usadas, uso do contexto na última request.
+
+O formato do `.jsonl` não é contrato do Claude Code. Leitura que falha esconde os instrumentos
+da sessão e mostra um aviso curto; os da execução continuam.
+
 ## Erros
 
 - Estado ilegível ou fora do formato: aviso na página, o resto continua.
