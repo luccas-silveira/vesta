@@ -95,18 +95,21 @@ Padrões a seguir: testes em `unittest`, repositório git descartável por teste
 
 ## Etapa 4 — A página
 
-- **Tela:** sim — o mockup inteiro, no estado terminal sóbrio com a faixa de instrumentos.
+- **Tela:** sim — o mockup inteiro: estado em letra grande com selo, barra hachurada, etapas, trilha e leitor no centro; instrumentos nas laterais; uma cor por estado.
 - **Arquivos:** mudar `skill/scripts/painel.html`, `skill/scripts/test_painel.py`.
 - **O que prova a etapa:**
-  - A página servida contém os pontos de montagem: `id="momento"`, `id="etapas"`,
-    `id="lista"`, `id="leitor"`, `id="inst"`, `id="gauge"`, `id="spark"`, `id="etapas-g"`,
+  - A página servida contém os pontos de montagem: `id="palavra"`, `id="selo"`,
+    `id="cheio"`, `id="etapas"`, `id="leitor"`, `id="arco"`, `id="pontos"`, `id="colunas"`,
     `id="ferr"`, `id="aviso-sessao"`, e carrega `/marked.js` e `/estado`.
+  - O `data-estado` do `<body>` recebe o tipo do momento (`rodando`, `plano`, `pausada`,
+    `travada`, `concluida`, `vazio`, `ilegivel`), que escolhe a cor de acento.
   - A página não carrega nada de fora de `127.0.0.1` além do Google Fonts.
   - Verificação visual (não automatizada): abrir o painel deste repositório no Safari com um
     estado de exemplo rodando, travado, pausado, sem execução, ilegível e sem sessão, e
     comparar com o mockup.
 - **Como fazer:** partir de `docs/vesta/mockups/2026-09-25-painel-da-vesta/index.html`. Tirar a
-  barra de estados do rodapé e os dados fixos; `fetch('/estado')` a cada 3 s preenche tudo.
+  barra de estados do rodapé (`nav.pe`) e os dados fixos; a palavra grande vem de uma tabela
+  por tipo de momento, como `E` no mockup; `fetch('/estado')` a cada 3 s preenche tudo.
   Trilha: botão por passo, desabilitado quando o caminho é `None`; clicar faz
   `fetch('/doc?caminho=')` e renderiza com `marked.parse` no leitor; o mockup abre em aba nova
   (`/doc` serve o HTML como `text/html` quando o caminho termina em `.html`). Sem sessão:
