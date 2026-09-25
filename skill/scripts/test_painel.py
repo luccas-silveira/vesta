@@ -12,6 +12,7 @@ import subprocess
 import sys
 import tempfile
 import unittest
+from unittest import mock
 
 AQUI = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, AQUI)
@@ -260,6 +261,118 @@ class Dados(Base):
     def test_estado_fora_do_formato_tambem_e_ilegivel(self):
         self.arquivo('.claude/vesta/estado.json', json.dumps({'etapas': []}))
         self.assertEqual(painel.dados(self.r)['momento']['tipo'], 'ilegivel')
+
+
+# Etapa 2 — formatos escolhidos: "inicio"/"fim" são a string "timestamp" exata da primeira e da
+# última linha do .jsonl que tem timestamp (qualquer type); "duracao_s" é int (segundos entre elas).
+# "requests" é int; "entrada" segue a ordem de primeira aparição do requestId; "ferramentas" em
+# empate de contagem vai por nome crescente.
+def linha_assistant(rid, ts, i=0, cr=0, cc=0, o=0, ferramentas=()):
+    return {'type': 'assistant', 'requestId': rid, 'timestamp': ts, 'message': {
+        'usage': {'input_tokens': i, 'cache_read_input_tokens': cr,
+                  'cache_creation_input_tokens': cc, 'output_tokens': o},
+        'content': [{'type': 'tool_use', 'name': n, 'id': 'x', 'input': {}} for n in ferramentas]}}
+
+
+class SessaoBase(Base):
+    def setUp(self):
+        super().setUp()
+        self.home = tempfile.TemporaryDirectory()
+        self.addCleanup(self.home.cleanup)
+        p = mock.patch.dict(os.environ, {'HOME': os.path.realpath(self.home.name)})
+        p.start()
+        self.addCleanup(p.stop)
+        self.proj = os.path.join(os.path.realpath(self.home.name), '.claude', 'projects',
+                                 self.r.replace('/', '-').replace('.', '-'))
+
+    def jsonl(self, nome, linhas, mtime=None):
+        os.makedirs(self.proj, exist_ok=True)
+        p = os.path.join(self.proj, nome)
+        with open(p, 'w') as f:
+            for l in linhas:
+                f.write((l if isinstance(l, str) else json.dumps(l)) + '\n')
+        if mtime is not None:
+            os.utime(p, (mtime, mtime))
+        return p
+
+
+class PastaSessoes(SessaoBase):
+    def test_home_do_ambiente_e_raiz_com_barra_e_ponto_trocados(self):
+        h = os.path.realpath(self.home.name)
+        self.assertEqual(painel.pasta_sessoes('/a/b.c/d_e'),
+                         os.path.join(h, '.claude', 'projects', '-a-b-c-d_e'))
+
+
+class Sessao(SessaoBase):
+    def test_resumo_completo(self):
+        self.jsonl('s.jsonl', [
+            {'type': 'user', 'timestamp': '2026-01-01T10:00:00.000Z', 'message': {}},
+            linha_assistant('r1', '2026-01-01T10:00:05.000Z', i=10, cr=100, cc=5, o=7,
+                            ferramentas=['Read', 'mcp__graft__graft_find_code']),
+            linha_assistant('r2', '2026-01-01T10:01:40.000Z', i=1, cr=200, cc=0, o=3,
+                            ferramentas=['Read', 'Bash', 'Read']),
+        ])
+        self.assertEqual(painel.sessao(self.r), {
+            'inicio': '2026-01-01T10:00:00.000Z', 'fim': '2026-01-01T10:01:40.000Z',
+            'duracao_s': 100, 'requests': 2, 'entrada': [115, 201], 'saida': 10,
+            'ferramentas': [['Read', 3], ['Bash', 1], ['graft_find_code', 1]],
+            'contexto': 201, 'janela': 200000})
+
+    def test_mesmo_request_id_conta_uma_request_com_o_ultimo_usage(self):
+        self.jsonl('s.jsonl', [
+            linha_assistant('r1', '2026-01-01T10:00:00Z', i=1, cr=10, o=2, ferramentas=['Read']),
+            linha_assistant('r1', '2026-01-01T10:00:01Z', i=1, cr=10, o=9, ferramentas=['Read']),
+            linha_assistant('r2', '2026-01-01T10:00:02Z', i=3, o=1),
+        ])
+        s = painel.sessao(self.r)
+        self.assertEqual((s['requests'], s['entrada'], s['saida']), (2, [11, 3], 10))
+        self.assertEqual(s['ferramentas'], [['Read', 2]])
+        self.assertEqual(s['contexto'], 3)
+
+    def test_janela_de_um_milhao_quando_passa_de_200k(self):
+        self.jsonl('s.jsonl', [linha_assistant('r1', '2026-01-01T10:00:00Z', cr=200001),
+                               linha_assistant('r2', '2026-01-01T10:00:01Z', i=5)])
+        self.assertEqual(painel.sessao(self.r)['janela'], 1000000)
+
+    def test_exatamente_200k_fica_em_200k(self):
+        self.jsonl('s.jsonl', [linha_assistant('r1', '2026-01-01T10:00:00Z', cr=200000)])
+        self.assertEqual(painel.sessao(self.r)['janela'], 200000)
+
+    def test_le_o_jsonl_modificado_por_ultimo(self):
+        self.jsonl('velho.jsonl', [linha_assistant('r', '2026-01-01T10:00:00Z', i=1)], 1_000)
+        self.jsonl('novo.jsonl', [linha_assistant('r', '2026-01-02T10:00:00Z', i=2)], 2_000)
+        self.jsonl('b.jsonl', [linha_assistant('r', '2026-01-03T10:00:00Z', i=3)], 1_500)
+        self.assertEqual(painel.sessao(self.r)['entrada'], [2])
+
+    def test_linha_que_nao_e_json_e_pulada(self):
+        self.jsonl('s.jsonl', ['{quebrado', linha_assistant('r1', '2026-01-01T10:00:00Z', i=4), ''])
+        self.assertEqual(painel.sessao(self.r)['entrada'], [4])
+
+    def test_pasta_ausente_e_none(self):
+        self.assertIsNone(painel.sessao(self.r))
+
+    def test_sem_jsonl_e_none(self):
+        os.makedirs(self.proj)
+        with open(os.path.join(self.proj, 'x.txt'), 'w') as f:
+            f.write(json.dumps(linha_assistant('r', '2026-01-01T10:00:00Z', i=1)))
+        self.assertIsNone(painel.sessao(self.r))
+
+    def test_sem_usage_e_none(self):
+        self.jsonl('s.jsonl', [{'type': 'user', 'timestamp': '2026-01-01T10:00:00Z', 'message': {}},
+                               '{quebrado'])
+        self.assertIsNone(painel.sessao(self.r))
+
+
+class DadosSessao(SessaoBase):
+    def test_dados_traz_a_sessao(self):
+        self.jsonl('s.jsonl', [linha_assistant('r1', '2026-01-01T10:00:00Z', i=7)])
+        self.assertEqual(painel.dados(self.r)['sessao'], painel.sessao(self.r))
+        self.assertEqual(painel.dados(self.r)['sessao']['entrada'], [7])
+
+    def test_dados_sem_sessao_e_none(self):
+        d = painel.dados(self.r)
+        self.assertIn('sessao', d)
+        self.assertIsNone(d['sessao'])
 
 
 if __name__ == '__main__':
