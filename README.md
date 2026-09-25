@@ -130,6 +130,11 @@ Este repositório foi criado pela própria Vesta, pelo caminho estrutural. Os ar
 Este exemplo não tem tela. Quando tem, a fase 4 produz antes do plano um mockup em HTML que você
 abre no navegador e aprova; o caminho dele vai no plano e no estado. Plano com etapa de tela e
 sem mockup commitado não começa: o script recusa iniciar a execução.
+Para ver o formato, há um [mockup de demonstração](docs/exemplo/mockup/index.html) de um recurso
+inventado.
+
+Como a Vesta foi decidida, com os registros originais, está em
+[docs/decisoes/README.md](docs/decisoes/README.md).
 
 ## Instalação
 

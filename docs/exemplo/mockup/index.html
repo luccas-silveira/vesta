@@ -1,0 +1,143 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Lembrete de retorno — mockup de demonstração</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600&family=Instrument+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+/* Hallmark · macrostructure: single task screen · tone: quiet editorial utility · anchor hue: 150 */
+/* Hallmark · pre-emit critique: P4 H4 E4 S4 R5 V4 */
+:root {
+  --color-paper: oklch(97.5% 0.008 95);
+  --color-surface: oklch(99.5% 0.004 95);
+  --color-ink: oklch(24% 0.02 150);
+  --color-muted: oklch(48% 0.015 150);
+  --color-rule: oklch(88% 0.01 120);
+  --color-accent: oklch(46% 0.09 150);
+  --color-accent-ink: oklch(98% 0.01 150);
+  --color-accent-soft: oklch(93% 0.035 150);
+  --color-error: oklch(50% 0.16 28);
+  --color-error-soft: oklch(95% 0.03 28);
+  --color-banner: oklch(92% 0.05 85);
+  --color-focus: oklch(55% 0.14 250);
+  --font-display: "Fraunces", Georgia, serif;
+  --font-body: "Instrument Sans", system-ui, sans-serif;
+  --space-xs: 4px; --space-sm: 8px; --space-md: 16px; --space-lg: 24px; --space-xl: 40px; --space-2xl: 64px;
+  --text-sm: 0.875rem; --text-base: 1rem; --text-lg: 1.125rem; --text-2xl: clamp(1.75rem, 5vw, 2.5rem);
+  --radius-sm: 6px; --radius-md: 10px;
+  --ease-out: cubic-bezier(0.2, 0.7, 0.2, 1);
+  --dur-fast: 150ms;
+}
+* { box-sizing: border-box; }
+html, body { overflow-x: clip; }
+body { margin: 0; background: var(--color-paper); color: var(--color-ink); font-family: var(--font-body); font-size: var(--text-base); line-height: 1.55; }
+.aviso { background: var(--color-banner); padding: var(--space-sm) var(--space-md); font-size: var(--text-sm); text-align: center; }
+main { max-width: 640px; margin: 0 auto; padding: var(--space-xl) var(--space-md) var(--space-2xl); }
+h1 { font-family: var(--font-display); font-weight: 600; font-style: normal; font-size: var(--text-2xl); line-height: 1.15; margin: 0 0 var(--space-sm); overflow-wrap: anywhere; min-width: 0; }
+.lede { color: var(--color-muted); margin: 0 0 var(--space-xl); }
+.estados { display: flex; flex-wrap: wrap; gap: var(--space-sm); margin-bottom: var(--space-lg); font-size: var(--text-sm); }
+.estados span { color: var(--color-muted); align-self: center; }
+.estados button { font: inherit; background: none; border: 1px solid var(--color-rule); color: var(--color-ink); border-radius: 999px; padding: var(--space-xs) var(--space-md); cursor: pointer; white-space: nowrap; }
+.estados button[aria-pressed="true"] { background: var(--color-ink); color: var(--color-paper); border-color: var(--color-ink); }
+.cartao { background: var(--color-surface); border: 1px solid var(--color-rule); border-radius: var(--radius-md); padding: var(--space-lg); }
+.cartao h2 { font-family: var(--font-display); font-weight: 500; font-size: var(--text-lg); margin: 0 0 var(--space-md); }
+label { display: block; font-weight: 500; font-size: var(--text-sm); margin-bottom: var(--space-xs); }
+.campo { margin-bottom: var(--space-md); }
+input, select { width: 100%; font: inherit; color: var(--color-ink); background: var(--color-paper); border: 1px solid var(--color-rule); border-radius: var(--radius-sm); padding: var(--space-sm) var(--space-md); }
+.linha { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: var(--space-md); }
+@media (max-width: 420px) { .linha { grid-template-columns: minmax(0, 1fr); } }
+.previa { background: var(--color-accent-soft); border-radius: var(--radius-sm); padding: var(--space-md); font-size: var(--text-sm); margin: var(--space-sm) 0 var(--space-lg); }
+.previa b { display: block; margin-bottom: var(--space-xs); }
+.acoes { display: flex; flex-wrap: wrap; gap: var(--space-md); align-items: center; }
+.primario { font: inherit; font-weight: 600; background: var(--color-accent); color: var(--color-accent-ink); border: 0; border-radius: var(--radius-sm); padding: var(--space-sm) var(--space-lg); cursor: pointer; white-space: nowrap; transition: opacity var(--dur-fast) var(--ease-out); }
+.primario:hover { opacity: 0.9; }
+.primario:active { transform: translateY(1px); }
+.primario:disabled { opacity: 0.55; cursor: progress; }
+.nota { color: var(--color-muted); font-size: var(--text-sm); }
+:focus-visible { outline: 2px solid var(--color-focus); outline-offset: 2px; }
+.erro { display: none; background: var(--color-error-soft); color: var(--color-error); border-radius: var(--radius-sm); padding: var(--space-md); font-size: var(--text-sm); margin-bottom: var(--space-md); }
+.vazio { display: none; text-align: center; padding: var(--space-xl) var(--space-md); }
+.vazio p { color: var(--color-muted); margin: 0 0 var(--space-md); }
+.lista { margin-top: var(--space-xl); }
+.lista h2 { font-family: var(--font-display); font-weight: 500; font-size: var(--text-lg); margin: 0 0 var(--space-sm); }
+.lista ul { list-style: none; margin: 0; padding: 0; }
+.lista li { display: flex; justify-content: space-between; gap: var(--space-md); padding: var(--space-md) 0; border-top: 1px solid var(--color-rule); }
+.lista li span:last-child { color: var(--color-muted); white-space: nowrap; }
+[data-estado="vazio"] .form, [data-estado="vazio"] .lista { display: none; }
+[data-estado="vazio"] .vazio { display: block; }
+[data-estado="erro"] .erro { display: block; }
+@media (prefers-reduced-motion: reduce) { * { transition-duration: 0ms !important; } }
+</style>
+</head>
+<body>
+<p class="aviso"><strong>Mockup de demonstração: mostra o formato que a fase 4 produz.</strong> O recurso abaixo é inventado.</p>
+<main data-estado="normal" id="tela">
+  <h1>Lembrete de retorno</h1>
+  <p class="lede">Agende uma mensagem para o cliente voltar depois do atendimento.</p>
+
+  <div class="estados" role="group" aria-label="Estados da tela">
+    <span>Estado:</span>
+    <button type="button" data-alvo="normal" aria-pressed="true">Preenchido</button>
+    <button type="button" data-alvo="vazio" aria-pressed="false">Vazio</button>
+    <button type="button" data-alvo="carregando" aria-pressed="false">Carregando</button>
+    <button type="button" data-alvo="erro" aria-pressed="false">Erro</button>
+  </div>
+
+  <section class="cartao">
+    <div class="vazio">
+      <p>Nenhum lembrete agendado ainda.</p>
+      <button type="button" class="primario" data-alvo="normal">Criar o primeiro</button>
+    </div>
+    <form class="form" onsubmit="return false">
+      <h2>Novo lembrete</h2>
+      <p class="erro" role="alert">Não deu para agendar: o número do cliente está sem DDD. Corrija e tente de novo.</p>
+      <div class="campo">
+        <label for="cliente">Cliente</label>
+        <input id="cliente" value="Marina Duarte">
+      </div>
+      <div class="linha">
+        <div class="campo">
+          <label for="quando">Enviar em</label>
+          <select id="quando"><option>7 dias</option><option selected>30 dias</option><option>90 dias</option></select>
+        </div>
+        <div class="campo">
+          <label for="canal">Canal</label>
+          <select id="canal"><option>WhatsApp</option><option>E-mail</option></select>
+        </div>
+      </div>
+      <div class="previa" aria-live="polite">
+        <b>Prévia da mensagem</b>
+        Oi, Marina! Já faz <span id="dias">30 dias</span> do seu atendimento. Quer marcar o retorno?
+      </div>
+      <div class="acoes">
+        <button type="submit" class="primario" id="agendar">Agendar lembrete</button>
+        <span class="nota">Você pode cancelar até a hora do envio.</span>
+      </div>
+    </form>
+  </section>
+
+  <section class="lista">
+    <h2>Agendados</h2>
+    <ul>
+      <li><span>Rafael Nunes · WhatsApp</span><span>em 3 dias</span></li>
+      <li><span>Carla Ribeiro · E-mail</span><span>em 12 dias</span></li>
+    </ul>
+  </section>
+</main>
+<script>
+const tela = document.getElementById('tela');
+const agendar = document.getElementById('agendar');
+function mostrar(estado) {
+  tela.dataset.estado = estado;
+  document.querySelectorAll('.estados button').forEach(b => b.setAttribute('aria-pressed', b.dataset.alvo === estado));
+  agendar.disabled = estado === 'carregando';
+  agendar.textContent = estado === 'carregando' ? 'Agendando…' : 'Agendar lembrete';
+}
+document.querySelectorAll('[data-alvo]').forEach(b => b.addEventListener('click', () => mostrar(b.dataset.alvo)));
+document.getElementById('quando').addEventListener('change', e => { document.getElementById('dias').textContent = e.target.value; });
+</script>
+</body>
+</html>
