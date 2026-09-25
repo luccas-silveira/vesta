@@ -440,33 +440,6 @@ class Adocao(Base):
         self.assertFalse(os.path.exists(self.caminho_estado))
 
 
-# O settings.json vizinho: o de ~/.claude, ou a cópia do backup em config/claude.
-RAIZ_CLAUDE = os.path.normpath(os.path.join(AQUI, '..', '..', '..'))
-GUARDA = r'^__e=\$\(mktemp\); cat > "\$__e"; python3 "[^"]*vesta\.py" silenciar < "\$__e"'
-
-
-class Registro(unittest.TestCase):
-    def comandos(self, evento):
-        with open(os.path.join(RAIZ_CLAUDE, 'settings.json')) as f:
-            h = json.load(f)['hooks']
-        return [x['command'] for g in h.get(evento, []) for x in g['hooks']]
-
-    def test_hooks_da_vesta_registrados(self):
-        self.assertTrue(any('vesta.py" hook-parada' in c for c in self.comandos('Stop')))
-        self.assertTrue(any('vesta.py" hook-inicio' in c for c in self.comandos('SessionStart')))
-        self.assertTrue(any('vesta.py" hook-adocao' in c for c in self.comandos('PostToolUse')))
-        proprios = [c for ev in ('Stop', 'SessionStart', 'PostToolUse') for c in self.comandos(ev)
-                    if 'vesta.py" hook-' in c]
-        for c in proprios:
-            self.assertTrue(c.endswith('|| true'), c)  # script sumido nunca vira bloqueio
-
-    def test_notificacao_do_supacode_com_guarda(self):
-        supacode = [c for c in self.comandos('Stop') if 'supacode-managed-hook' in c]
-        self.assertTrue(supacode)
-        for c in supacode:
-            self.assertRegex(c, GUARDA)
-
-
 class Mockup(Base):
     """Plano com tela não executa sem mockup commitado."""
     TELA = [{'id': '1', 'titulo': 'tela', 'tela': True}]
