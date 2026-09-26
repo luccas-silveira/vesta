@@ -291,7 +291,7 @@ function colunas(tempos){
   const g=$('colunas'),ids=Object.keys(tempos),v=ids.map(i=>tempos[i]),max=Math.max(10,...v.filter(x=>x!=null))*1.1,H=96,base=108;
   const w=ids.length?Math.min(34,204/ids.length):34;
   g.innerHTML='<defs><pattern id="hx" width="6" height="6" patternUnits="userSpaceOnUse" patternTransform="rotate(-55)"><rect width="3" height="6" fill="var(--acento)"/></pattern></defs>';
-  if(!ids.length){g.append(el('text',{x:110,y:62,'text-anchor':'middle'},'SEM EXECUÇÃO'));g.append(el('text',{x:110,y:76,'text-anchor':'middle',style:'fill:var(--tinta-3)'},'o tempo por etapa aparece ao rodar a vesta'));return}
+  if(!ids.length){g.append(el('text',{x:110,y:62,'text-anchor':'middle'},'SEM EXECUÇÃO'));g.append(el('text',{x:110,y:76,'text-anchor':'middle',style:'fill:var(--tinta-3)'},'aparece ao rodar a vesta'));return}
   [0,.5,1].forEach(f=>{const y=base-f*H;g.append(el('line',{x1:0,x2:212,y1:y,y2:y,class:'s-traco','stroke-dasharray':'1 4'}));g.append(el('text',{x:214,y:y+3},Math.round(f*max)))});
   ids.forEach((id,i)=>{const x=6+i*w,val=v[i],h=val?val/max*H:0;
     g.append(el('rect',{x,y:base-H,width:14,height:H,class:'s-traco'}));
