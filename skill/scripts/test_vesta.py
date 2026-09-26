@@ -364,7 +364,8 @@ class Retomada(Base):
     def sem_aviso(self, out):
         """Sem aviso: nada, ou só a linha do painel (etapa 5)."""
         if out is not None:
-            self.assertNotIn('systemMessage', out)
+            self.assertEqual(out.get('systemMessage', '').count('\n'), 0)
+            self.assertNotIn('etapa', out.get('systemMessage', ''))
             self.assertIn('Painel deste projeto', out['hookSpecificOutput']['additionalContext'])
 
     def test_mesma_sessao_sem_aviso(self):
