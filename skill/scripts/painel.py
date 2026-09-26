@@ -102,12 +102,24 @@ def _instante(ts):
     return datetime.fromisoformat(ts.replace('Z', '+00:00'))
 
 
+def _do_sdk(caminho):
+    with open(caminho) as f:
+        for _, linha in zip(range(50), f):
+            if '"entrypoint":"sdk' in linha.replace(' ', ''):
+                return True
+    return False
+
+
 def sessao(r):
     arqs = glob.glob(os.path.join(pasta_sessoes(r), '*.jsonl'))
     if not arqs:
         return None
+    # sessões do SDK (claude -p de revisores automáticos) caem na mesma pasta e não são a do usuário
+    arqs = [a for a in sorted(arqs, key=os.path.getmtime, reverse=True) if not _do_sdk(a)]
+    if not arqs:
+        return None
     usos, saidas, marcas, ferr = {}, {}, [], Counter()
-    with open(max(arqs, key=os.path.getmtime)) as f:
+    with open(arqs[0]) as f:
         for linha in f:
             try:
                 l = json.loads(linha)

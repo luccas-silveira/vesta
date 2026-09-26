@@ -344,6 +344,17 @@ class Sessao(SessaoBase):
         self.jsonl('s.jsonl', [linha_assistant('r1', '2026-01-01T10:00:00Z', cr=200000)])
         self.assertEqual(painel.sessao(self.r)['janela'], 200000)
 
+    def test_ignora_sessao_do_sdk(self):
+        pasta = painel.pasta_sessoes(self.r)
+        os.makedirs(pasta, exist_ok=True)
+        cli = os.path.join(pasta, 'a.jsonl'); sdk = os.path.join(pasta, 'b.jsonl')
+        with open(cli, 'w') as f:
+            f.write(json.dumps(dict(linha_assistant('r1', '2026-01-01T00:00:00Z', i=10), entrypoint='cli')) + '\n')
+        with open(sdk, 'w') as f:
+            f.write(json.dumps(dict(linha_assistant('r9', '2026-01-01T00:00:00Z', i=99), entrypoint='sdk-py')) + '\n')
+        os.utime(cli, (1, 1)); os.utime(sdk, (2, 2))
+        self.assertEqual(painel.sessao(self.r)['entrada'], [10])
+
     def test_le_o_jsonl_modificado_por_ultimo(self):
         self.jsonl('velho.jsonl', [linha_assistant('r', '2026-01-01T10:00:00Z', i=1)], 1_000)
         self.jsonl('novo.jsonl', [linha_assistant('r', '2026-01-02T10:00:00Z', i=2)], 2_000)
