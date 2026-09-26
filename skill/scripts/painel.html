@@ -255,8 +255,8 @@ function etapas(e,tipo){
     const t=x.provas.teste,trav=x.status==='travada',feita=x.status==='feita',at=x===atual;
     let p='<span class="micro">—</span>',sub='aguardando';
     if(feita){p=`<span class="chip ok">verde</span><span class="micro">${esc((t.commit||'').slice(0,7))}</span>`;sub='prova de teste · ok'}
-    if(at){p=`<span class="chip vazado">${t.vermelho?'vermelho':'—'}</span><span class="micro">tent. ${t.tentativas}/3</span>`;sub='implementando'}
-    if(trav){p=`<span class="chip erro">travada</span><span class="micro">${t.tentativas}/3</span>`;sub='limite de tentativas'}
+    if(at){p=`<span class="chip vazado">${t.vermelho?'vermelho':'—'}</span><span class="micro">tent. ${t.tentativas}/8</span>`;sub='implementando'}
+    if(trav){p=`<span class="chip erro">travada</span><span class="micro">${t.tentativas}/8</span>`;sub='limite de tentativas'}
     const li=document.createElement('li');li.className=(feita?'feita':'')+(at||trav?' atual':'');
     li.innerHTML=`<span class="id">${pad(esc(x.id))}</span><span class="t">${esc(x.titulo)}<span class="micro">${sub}</span></span><span class="p">${p}</span>`;ol.append(li);
   });
