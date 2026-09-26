@@ -237,6 +237,17 @@ class Dados(Base):
         self.assertEqual(d['atual']['topico'], 'novo')
         self.assertEqual(d['tempos'], {})
 
+    def test_traz_o_caminho_com_home_abreviado(self):
+        casa, nome = os.path.split(self.r)
+        with mock.patch.dict(os.environ, {'HOME': casa}):
+            d = painel.dados(self.r)
+        self.assertIn('~/' + nome, d.values())
+        self.assertNotIn(self.r, d.values())
+
+    def test_caminho_fora_do_home_fica_inteiro(self):
+        with mock.patch.dict(os.environ, {'HOME': '/nao/existe'}):
+            self.assertIn(self.r, painel.dados(self.r).values())
+
     def test_com_execucao_atual_e_a_feature_do_plano(self):
         self.arquivo('docs/vesta/plans/2026-01-01-velho.md')
         self.arquivo('docs/vesta/plans/2026-02-01-novo.md')
@@ -601,6 +612,66 @@ class HookInicioPainel(PainelBase):
         self.assertIn('outra sessão', out['systemMessage'])
         self.assertNotIn('Painel deste projeto', out['hookSpecificOutput']['additionalContext'])
 
+    def test_system_message_mostra_painel_do_projeto(self):
+        self.arquivo('docs/vesta/specs/x.md', 'x')
+        out = vesta.hook_inicio({'cwd': self.r, 'session_id': 's1'})
+        nome = os.path.basename(self.r)
+        m = re.search(rf'vesta: painel de {re.escape(nome)} em http://localhost:(\d+)', out['systemMessage'])
+        self.assertTrue(m, out['systemMessage'])
+        self.assertEqual(quem(int(m.group(1))), f'vesta-painel {self.r}')
+        self.assertIn(f'http://localhost:{m.group(1)}', out['hookSpecificOutput']['additionalContext'])
+
+    def test_com_aviso_system_message_tem_aviso_e_painel(self):
+        self.arquivo('.claude/vesta/estado.json',
+                     json.dumps(dict(estado([etapa('1')]), sessao='outra')))
+        out = vesta.hook_inicio({'cwd': self.r, 'session_id': 's1'})
+        msg = out['systemMessage']
+        self.assertIn('outra sessão', msg)
+        self.assertIn(f'painel de {os.path.basename(self.r)} em http://localhost:', msg)
+        self.assertRegex(out['hookSpecificOutput']['additionalContext'], r'http://localhost:\d+')
+
+
+class ComandoPainel(PainelBase):
+    """`vesta.py painel` sobe, abre no navegador (`open`, falso no PATH) e imprime a url."""
+
+    def setUp(self):
+        super().setUp()
+        self.bin = tempfile.TemporaryDirectory()
+        self.addCleanup(self.bin.cleanup)
+        self.registro = os.path.join(self.bin.name, 'abertos')
+        falso = os.path.join(self.bin.name, 'open')
+        with open(falso, 'w') as f:
+            f.write(f'#!/bin/sh\necho "$@" >> {self.registro}\n')
+        os.chmod(falso, 0o755)
+
+    def rodar(self):
+        env = {k: v for k, v in os.environ.items() if k != 'CLAUDE_PROJECT_DIR'}
+        env['PATH'] = self.bin.name + os.pathsep + env.get('PATH', '')
+        return subprocess.run([sys.executable, os.path.join(AQUI, 'vesta.py'), 'painel'],
+                              cwd=self.r, env=env, capture_output=True, text=True, timeout=30)
+
+    def abertos(self):
+        if not os.path.exists(self.registro):
+            return []
+        with open(self.registro) as f:
+            return f.read().split()
+
+    def test_sobe_abre_e_imprime_a_url(self):
+        self.arquivo('docs/vesta/specs/x.md', 'x')
+        p = self.rodar()
+        self.assertEqual(p.returncode, 0, p.stderr)
+        m = re.search(r'http://localhost:(\d+)', p.stdout)
+        self.assertTrue(m, p.stdout)
+        self.assertEqual(quem(int(m.group(1))), f'vesta-painel {self.r}')
+        self.assertEqual(self.abertos(), [m.group(0)])
+
+    def test_sem_vesta_falha_sem_abrir(self):
+        p = self.rodar()
+        self.assertNotEqual(p.returncode, 0)
+        self.assertTrue(p.stderr.strip())
+        self.assertNotIn('http://localhost', p.stdout)
+        self.assertEqual(self.abertos(), [])
+
 
 class Pagina(unittest.TestCase):
     TIPOS = ('rodando', 'plano', 'pausada', 'travada', 'concluida', 'vazio', 'ilegivel')
@@ -634,6 +705,14 @@ class Pagina(unittest.TestCase):
         for h in hosts:
             with self.subTest(h):
                 self.assertIn(h.lower(), ('fonts.googleapis.com', 'fonts.gstatic.com'))
+
+    def test_rotulo_projeto_acima_do_nome(self):
+        self.assertRegex(self.h, r'class="micro">\s*projeto\s*</div>\s*<h1 id="projeto">')
+        self.assertNotIn('painel de execução', self.h)
+
+    def test_titulo_da_aba_comeca_pelo_projeto(self):
+        self.assertRegex(self.h, r"document\.title\s*=\s*D\.projeto\s*\+\s*['\"`]\s*·\s*Vesta")
+        self.assertNotRegex(self.h, r"document\.title\s*=\s*['\"`]Vesta")
 
 
 if __name__ == '__main__':

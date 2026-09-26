@@ -9,7 +9,7 @@ import unittest
 RAIZ = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 INSTALL = os.path.join(RAIZ, 'install.sh')
 SKILL = os.path.realpath(os.path.join(RAIZ, 'skill'))
-COMANDOS = ['vesta-retomar.md', 'vesta-pausar.md']
+COMANDOS = ['vesta-retomar.md', 'vesta-pausar.md', 'vesta-painel.md']
 HOOK_VESTA = 'python3 "/x/skill/scripts/vesta.py" hook-parada || true'
 SUPACODE = '/x/supacode-managed-hook stop'
 SILENCIAR = 'python3 "/x/skill/scripts/vesta.py" silenciar || true'
