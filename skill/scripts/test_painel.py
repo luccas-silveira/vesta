@@ -473,6 +473,124 @@ class Servidor(Base):
         self.assertEqual(self.get('/quem')[0], 200)
 
 
+def matar_porta(n):
+    """Mata quem escuta em tcp:n (o painel sobe em sessão própria, fora do alcance do teste)."""
+    out = subprocess.run(['lsof', '-ti', f'tcp:{n}', '-sTCP:LISTEN'], capture_output=True,
+                         text=True).stdout.split()
+    for pid in out:
+        subprocess.run(['kill', pid], capture_output=True)
+    return out
+
+
+def escuta(n):
+    try:
+        socket.create_connection(('127.0.0.1', n), timeout=0.3).close()
+        return True
+    except OSError:
+        return False
+
+
+class PainelBase(Base):
+    def setUp(self):
+        super().setUp()
+        self.addCleanup(lambda: [matar_porta(4700 + i) for i in range(100)
+                                 if f'vesta-painel {self.r}' in quem(4700 + i)])
+
+    def url(self, n):
+        return f'http://localhost:{n}'
+
+
+class Subir(PainelBase):
+    def test_porta_estavel_e_na_faixa(self):
+        self.assertEqual(painel.porta(self.r), painel.porta(self.r))
+        ps = {painel.porta(f'/tmp/projeto-{i}') for i in range(50)}
+        self.assertTrue(all(4700 <= p <= 4799 for p in ps), ps)
+        self.assertGreater(len(ps), 5)  # deriva do caminho, não é constante
+
+    def test_sem_vesta_nao_sobe(self):
+        self.assertIsNone(painel.subir(self.r))
+        self.assertNotIn(f'vesta-painel {self.r}', quem(painel.porta(self.r)))
+
+    def test_com_docs_vesta_sobe_e_responde_quem(self):
+        self.arquivo('docs/vesta/specs/x.md', 'x')
+        n = painel.porta(self.r)
+        if escuta(n):
+            self.skipTest(f'porta {n} já ocupada nesta máquina')
+        self.assertEqual(painel.subir(self.r), self.url(n))
+        self.assertEqual(quem(n), f'vesta-painel {self.r}')
+
+    def test_so_claude_vesta_tambem_sobe(self):
+        os.makedirs(os.path.join(self.r, '.claude', 'vesta'))
+        u = painel.subir(self.r)
+        self.assertIsNotNone(u)
+        self.assertEqual(quem(int(u.rsplit(':', 1)[1])), f'vesta-painel {self.r}')
+
+    def test_segunda_chamada_reusa_o_mesmo_processo(self):
+        self.arquivo('docs/vesta/specs/x.md', 'x')
+        u = painel.subir(self.r)
+        n = int(u.rsplit(':', 1)[1])
+        pids = subprocess.run(['lsof', '-ti', f'tcp:{n}', '-sTCP:LISTEN'], capture_output=True,
+                              text=True).stdout.split()
+        self.assertEqual(painel.subir(self.r), u)
+        time.sleep(0.3)
+        depois = subprocess.run(['lsof', '-ti', f'tcp:{n}', '-sTCP:LISTEN'], capture_output=True,
+                                text=True).stdout.split()
+        self.assertEqual(depois, pids)
+        vivos = [i for i in range(100) if f'vesta-painel {self.r}' in quem(4700 + i)]
+        self.assertEqual(len(vivos), 1)
+
+    def test_porta_ocupada_por_outro_tenta_a_seguinte(self):
+        self.arquivo('docs/vesta/specs/x.md', 'x')
+        n = painel.porta(self.r)
+        prox = 4700 + (n - 4700 + 1) % 100
+        if escuta(n) or escuta(prox):
+            self.skipTest('portas já ocupadas nesta máquina')
+        s = socket.socket()
+        s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        s.bind(('127.0.0.1', n))
+        s.listen()
+        self.addCleanup(s.close)
+        self.assertEqual(painel.subir(self.r), self.url(prox))
+        self.assertEqual(quem(prox), f'vesta-painel {self.r}')
+
+
+def quem(n):
+    try:
+        with urllib.request.urlopen(f'http://127.0.0.1:{n}/quem', timeout=0.5) as r:
+            return r.read().decode().strip()
+    except Exception:
+        return ''
+
+
+class HookInicioPainel(PainelBase):
+    def test_sem_aviso_devolve_linha_do_painel(self):
+        self.arquivo('docs/vesta/specs/x.md', 'x')
+        out = vesta.hook_inicio({'cwd': self.r, 'session_id': 's1'})
+        ctx = out['hookSpecificOutput']['additionalContext']
+        m = re.search(r'Painel deste projeto: http://localhost:(\d+)', ctx)
+        self.assertTrue(m, ctx)
+        self.assertEqual(quem(int(m.group(1))), f'vesta-painel {self.r}')
+
+    def test_com_aviso_linha_vai_junto(self):
+        self.arquivo('.claude/vesta/estado.json',
+                     json.dumps(dict(estado([etapa('1')]), sessao='outra')))
+        out = vesta.hook_inicio({'cwd': self.r, 'session_id': 's1'})
+        ctx = out['hookSpecificOutput']['additionalContext']
+        self.assertIn('outra sessão', ctx)
+        self.assertRegex(ctx, r'Painel deste projeto: http://localhost:\d+')
+
+    def test_sem_vesta_continua_none(self):
+        self.assertIsNone(vesta.hook_inicio({'cwd': self.r, 'session_id': 's1'}))
+
+    def test_falha_do_painel_nao_derruba_o_aviso(self):
+        self.arquivo('.claude/vesta/estado.json',
+                     json.dumps(dict(estado([etapa('1')]), sessao='outra')))
+        with mock.patch.object(painel, 'subir', side_effect=RuntimeError('x')):
+            out = vesta.hook_inicio({'cwd': self.r, 'session_id': 's1'})
+        self.assertIn('outra sessão', out['systemMessage'])
+        self.assertNotIn('Painel deste projeto', out['hookSpecificOutput']['additionalContext'])
+
+
 class Pagina(unittest.TestCase):
     TIPOS = ('rodando', 'plano', 'pausada', 'travada', 'concluida', 'vazio', 'ilegivel')
 

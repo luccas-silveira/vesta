@@ -4,6 +4,7 @@ import os
 import subprocess
 import tempfile
 import unittest
+import urllib.request
 
 AQUI = os.path.dirname(os.path.abspath(__file__))
 SCRIPT = os.path.join(AQUI, 'vesta.py')
@@ -346,12 +347,32 @@ class Retomada(Base):
         self.assertIn('/vesta-retomar', out['systemMessage'])
         self.assertEqual(out['hookSpecificOutput']['hookEventName'], 'SessionStart')
 
+    def tearDown(self):
+        # hook-inicio em projeto com Vesta sobe o painel (etapa 5); derruba o deste projeto
+        for i in range(100):
+            try:
+                with urllib.request.urlopen(f'http://127.0.0.1:{4700 + i}/quem', timeout=0.3) as r:
+                    if r.read().decode().strip() != f'vesta-painel {self.r}':
+                        continue
+            except Exception:
+                continue
+            for pid in subprocess.run(['lsof', '-ti', f'tcp:{4700 + i}', '-sTCP:LISTEN'],
+                                      capture_output=True, text=True).stdout.split():
+                subprocess.run(['kill', pid], capture_output=True)
+        super().tearDown()
+
+    def sem_aviso(self, out):
+        """Sem aviso: nada, ou só a linha do painel (etapa 5)."""
+        if out is not None:
+            self.assertNotIn('systemMessage', out)
+            self.assertIn('Painel deste projeto', out['hookSpecificOutput']['additionalContext'])
+
     def test_mesma_sessao_sem_aviso(self):
-        self.assertIsNone(self.hook('hook-inicio', sid='s1'))
+        self.sem_aviso(self.hook('hook-inicio', sid='s1'))
 
     def test_sem_estado_sem_aviso(self):
         os.remove(self.caminho_estado)
-        self.assertIsNone(self.hook('hook-inicio', sid='s2'))
+        self.sem_aviso(self.hook('hook-inicio', sid='s2'))
 
     def test_estado_ilegivel_avisa(self):
         with open(self.caminho_estado, 'w') as f:
