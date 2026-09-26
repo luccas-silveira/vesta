@@ -1,6 +1,11 @@
 #!/usr/bin/env python3
 """Vesta, painel: dados da execução e das features. Só biblioteca padrão."""
 import glob
+import hashlib
+import socket
+import subprocess
+import time
+import urllib.request
 import http.server
 import urllib.parse
 import json
@@ -191,6 +196,48 @@ def servir(r, porta):
         return 0
     srv.daemon_threads = True
     srv.serve_forever()
+
+
+def porta(r):
+    return 4700 + int(hashlib.sha1(r.encode()).hexdigest()[:4], 16) % 100
+
+
+def _quem(n):
+    try:
+        with urllib.request.urlopen(f'http://127.0.0.1:{n}/quem', timeout=0.5) as resp:
+            return resp.read().decode().strip()
+    except Exception:
+        return None
+
+
+def _ocupada(n):
+    try:
+        socket.create_connection(('127.0.0.1', n), timeout=0.3).close()
+        return True
+    except OSError:
+        return False
+
+
+def subir(r):
+    if not (os.path.isdir(os.path.join(r, 'docs', 'vesta'))
+            or os.path.isdir(os.path.join(r, '.claude', 'vesta'))):
+        return None
+    base = porta(r)
+    for i in range(100):
+        n = 4700 + (base - 4700 + i) % 100
+        if _ocupada(n):
+            if _quem(n) == f'vesta-painel {r}':
+                return f'http://localhost:{n}'
+            continue
+        subprocess.Popen([sys.executable, os.path.abspath(__file__), 'servir', r, str(n)],
+                         start_new_session=True, stdin=subprocess.DEVNULL,
+                         stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        fim = time.time() + 2
+        while time.time() < fim:
+            if _ocupada(n):
+                return f'http://localhost:{n}'
+            time.sleep(0.05)
+    return None
 
 
 if __name__ == '__main__' and sys.argv[1:2] == ['servir']:

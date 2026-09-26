@@ -441,6 +441,22 @@ def aviso(texto):
 
 def hook_inicio(entrada):
     r = raiz(entrada.get('cwd'))
+    out = aviso_inicio(r, entrada)
+    try:
+        import painel
+        url = painel.subir(r)
+    except Exception:
+        url = None
+    if not url:
+        return out
+    linha = f'Painel deste projeto: {url}'
+    if out is None:
+        return {'hookSpecificOutput': {'hookEventName': 'SessionStart', 'additionalContext': linha}}
+    out['hookSpecificOutput']['additionalContext'] += ' ' + linha
+    return out
+
+
+def aviso_inicio(r, entrada):
     try:
         e = ler(r)
     except (ValueError, OSError):
