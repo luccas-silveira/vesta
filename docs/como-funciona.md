@@ -50,12 +50,24 @@ libera a sessão. Progresso é qualquer mudança no estado das etapas, no commit
 - **Stop** (`hook-parada`): enquanto houver etapa por provar, bloqueia o fim do turno e diz ao
   agente o que falta.
 - **SessionStart** (`hook-inicio`): avisa de execução travada, interrompida, ligada a outra
-  sessão ou de estado ilegível.
+  sessão ou de estado ilegível, e sobe o painel do projeto (veja abaixo).
 - **PostToolUse** do Bash (`hook-adocao`): quando um comando roda `vesta.py iniciar`, `retomar`
   ou `adicionar`, essa sessão vira a dona da execução. Só a sessão dona é travada; outra sessão
   no mesmo projeto para livremente.
 
 Se um hook falhar por defeito próprio, ele não prende a sessão.
+
+## O painel
+
+`skill/scripts/painel.py` é um servidor local, só biblioteca padrão, que o `hook-inicio` sobe
+quando o projeto tem `docs/vesta/` ou `.claude/vesta/`. Ele escuta em `127.0.0.1`, numa porta
+entre 4700 e 4799 derivada do caminho do projeto, e reaproveita o servidor que já estiver de pé
+para o mesmo projeto. O endereço vai para o contexto da sessão.
+
+A página mostra a execução (etapa atual, provas, tempo por etapa), os documentos de cada feature
+(spec, pesquisa, plano, mockup) e os instrumentos da sessão mais recente: requests, tokens de
+entrada e saída, ocupação do contexto e ferramentas usadas. Se o painel falhar, o hook segue sem
+ele.
 
 ## A trava do mockup
 

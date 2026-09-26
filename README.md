@@ -185,3 +185,6 @@ Depois, abra uma sessão nova do Claude Code: os hooks do plugin só carregam ne
   da próxima sessão do projeto; este comando passa a execução para a sessão atual e destrava uma
   etapa travada.
 - `/vesta-pausar`: para a execução de propósito, mantendo o estado para retomar depois.
+- Painel: no começo de cada sessão o hook sobe `skill/scripts/painel.py`, um servidor local que
+  mostra a execução, os documentos da feature e os instrumentos da sessão. O endereço aparece no
+  contexto da sessão. Detalhes em [como-funciona.md](docs/como-funciona.md#o-painel).
