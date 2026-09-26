@@ -9,6 +9,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Vesta</title>
+<link rel="icon" id="favicon" href="data:,">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@300;400;500;600&family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500&display=swap" rel="stylesheet">
 <style>
@@ -334,11 +335,26 @@ function features(fs){
     li.innerHTML=`<span class="micro">${esc(f.data)}</span><span class="n">${esc(f.topico.replace(/-/g,' '))}</span><span class="passos">${s}</span>`;
     li.onclick=()=>{escolhida=f.topico;aberto=null;$('leitor').innerHTML='';trilha()};ul.append(li)});
 }
+function aba(tipo,e){
+  // Vesta é a deusa do fogo do lar: a chama muda de cor com o estado e o anel mostra o progresso
+  const cor={rodando:'#5fd08a',concluida:'#5fd08a',pausada:'#f0c14b',travada:'#f07a62',ilegivel:'#f07a62',plano:'#5cc8e0'}[tipo]||'#8a8a8a';
+  const n=e?e.etapas.length:0,f=e?e.etapas.filter(x=>x.status==='feita').length:0,pct=n?f/n:0;
+  const svg=`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32"><rect width="32" height="32" rx="7" fill="#161616"/>`+
+    `<circle cx="16" cy="16" r="13" fill="none" stroke="#ffffff22" stroke-width="2.5"/>`+
+    `<circle cx="16" cy="16" r="13" fill="none" stroke="${cor}" stroke-width="2.5" stroke-linecap="round" pathLength="100" stroke-dasharray="${pct*100} 100" transform="rotate(-90 16 16)"/>`+
+    `<path d="M16 6c1 4 6 6 6 11a6 6 0 0 1-12 0c0-3 2-4 2-7 1.5 1 2 2.5 2 4 1-2 2-5 2-8z" fill="${cor}"/>`+
+    `<path d="M16 15c.6 2 3 3 3 5a3 3 0 0 1-6 0c0-1.5 1-2 1.3-3.2.6.6.9 1.3.9 2 .5-1.2.8-2.5.8-3.8z" fill="#161616" opacity=".55"/></svg>`;
+  $('favicon').href='data:image/svg+xml,'+encodeURIComponent(svg);
+  const g={rodando:'▶',pausada:'⏸',travada:'⛔',ilegivel:'⚠',concluida:'✓',plano:'◇'}[tipo]||'○';
+  const pend=e&&e.etapas.find(x=>x.status!=='feita');
+  const onde=tipo==='concluida'?`${n}/${n}`:pend?`etapa ${pad(pend.id)}/${pad(n)}`:'';
+  document.title=`${D.projeto} ${g}${onde?' '+onde:''} · Vesta`;
+}
 function render(){
   const tipo=D.momento.tipo,e=D.estado,m=E[tipo];document.body.dataset.estado=tipo;
   document.querySelectorAll('[data-so]').forEach(x=>x.hidden=!x.dataset.so.split(' ').includes(tipo));
   document.querySelectorAll('[data-nao]').forEach(x=>x.hidden=x.dataset.nao.split(' ').includes(tipo));
-  $('projeto').textContent=D.projeto;$('caminho').textContent=D.caminho;document.title=D.projeto+' · Vesta';
+  $('projeto').textContent=D.projeto;$('caminho').textContent=D.caminho;aba(tipo,e);
   $('plano-nome').textContent=e?e.plano.split('/').pop():'—';
   $('palavra').textContent=m.p;$('desc').textContent=m.d;$('obs').textContent=D.momento.texto;selo(m.selo);
   const pend=e&&e.etapas.find(x=>x.status!=='feita');

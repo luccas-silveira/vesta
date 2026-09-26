@@ -711,7 +711,7 @@ class Pagina(unittest.TestCase):
         self.assertNotIn('painel de execução', self.h)
 
     def test_titulo_da_aba_comeca_pelo_projeto(self):
-        self.assertRegex(self.h, r"document\.title\s*=\s*D\.projeto\s*\+\s*['\"`]\s*·\s*Vesta")
+        self.assertRegex(self.h, r"document\.title\s*=\s*`\$\{D\.projeto\}[^`]*· Vesta`")
         self.assertNotRegex(self.h, r"document\.title\s*=\s*['\"`]Vesta")
 
 
