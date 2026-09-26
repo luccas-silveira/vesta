@@ -13,9 +13,9 @@
 <link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@300;400;500;600&family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500&display=swap" rel="stylesheet">
 <style>
 :root{
-  --chao:oklch(0.17 0.012 240); --chao-2:oklch(0.145 0.012 240); --placa:oklch(0.21 0.014 240 / 0.55);
-  --traco:oklch(0.62 0.02 230 / 0.28); --traco-forte:oklch(0.72 0.02 230 / 0.55); --ponto:oklch(0.70 0.02 230 / 0.22);
-  --tinta:oklch(0.93 0.008 230); --tinta-2:oklch(0.76 0.012 230); --tinta-3:oklch(0.56 0.015 230);
+  --chao:oklch(0.16 0 0); --chao-2:oklch(0.135 0 0); --placa:oklch(0.20 0 0 / 0.6);
+  --traco:oklch(0.62 0 0 / 0.28); --traco-forte:oklch(0.72 0 0 / 0.55); --ponto:oklch(0.70 0 0 / 0.22);
+  --tinta:oklch(0.93 0 0); --tinta-2:oklch(0.76 0 0); --tinta-3:oklch(0.56 0 0);
   --verde:oklch(0.80 0.14 152); --ambar:oklch(0.82 0.14 85); --coral:oklch(0.70 0.15 28); --ciano:oklch(0.80 0.10 215);
   --acento:var(--verde);
   --f-display:Rajdhani,"Eurostile",ui-sans-serif,sans-serif;
@@ -24,9 +24,9 @@
 }
 body[data-estado=rodando],body[data-estado=concluida]{--acento:var(--verde)}
 body[data-estado=pausada]{--acento:var(--ambar)} body[data-estado=travada],body[data-estado=ilegivel]{--acento:var(--coral)}
-body[data-estado=plano]{--acento:var(--ciano)} body[data-estado=vazio]{--acento:var(--tinta-2)}
+body[data-estado=plano],body[data-estado=vazio]{--acento:var(--verde)}
 *{box-sizing:border-box;margin:0;padding:0}
-html,body{overflow-x:clip}
+html{color-scheme:dark}html,body{overflow-x:clip}
 body{min-height:100vh;color:var(--tinta);font:400 13px/1.45 var(--f-micro);
   background:radial-gradient(ellipse at 50% 30%,var(--chao) 0%,var(--chao-2) 75%);padding-bottom:56px}
 /* malha de pontos + cruzes nas interseções maiores */
@@ -117,13 +117,14 @@ svg text{font:500 8.5px var(--f-micro);fill:var(--tinta-3);letter-spacing:.06em}
 .leitor::before{top:-1px;left:-1px;border-right:0;border-bottom:0}.leitor::after{bottom:-1px;right:-1px;border-left:0;border-top:0}
 .leitor h1{font:400 22px/1.2 var(--f-display);letter-spacing:.06em;color:var(--tinta);margin-bottom:10px}
 .leitor h2{font:500 15px/1.3 var(--f-display);letter-spacing:.08em;text-transform:uppercase;color:var(--tinta);margin:16px 0 6px}
-.leitor p{max-width:70ch;margin-bottom:8px} .leitor code{font:13px var(--f-micro);color:var(--tinta)}
+.leitor p{max-width:70ch;margin-bottom:8px} .leitor code{font:13px var(--f-micro);color:var(--tinta);overflow-wrap:anywhere} .leitor pre{overflow-x:auto;margin-bottom:8px} .leitor pre code{overflow-wrap:normal} .leitor ul,.leitor ol{padding-left:20px;margin-bottom:8px;max-width:70ch} .leitor li{margin-bottom:2px} .leitor hr{border:0;border-top:1px solid var(--traco);margin:16px 0}
+.leitor{scrollbar-color:var(--traco-forte) transparent}
 
 .features{list-style:none}
 .features li{display:grid;grid-template-columns:90px minmax(0,1fr) auto;gap:14px;align-items:center;padding:10px 0;border-bottom:1px solid var(--traco);cursor:pointer}
 .features .n{font:500 15px var(--f-display);letter-spacing:.06em}
 .features li:hover .n{color:var(--acento)}
-.passos{display:flex;gap:3px}.passos i{width:14px;height:4px;background:var(--traco-forte)}.passos i.s{background:var(--tinta-2)}
+.passos{display:flex;gap:3px}.passos i{width:14px;height:4px;background:var(--traco-forte)}.passos i.s{background:var(--acento)}
 
 .aviso{display:flex;gap:10px;align-items:center;margin-top:18px;padding:8px 10px;box-shadow:inset 0 0 0 1px var(--coral);color:var(--coral);font:500 11px var(--f-micro);letter-spacing:.06em;text-transform:uppercase}
 .aviso::before{content:"";width:22px;height:8px;flex:none;background:repeating-linear-gradient(-55deg,var(--coral) 0 4px,transparent 4px 7px)}
@@ -264,7 +265,7 @@ function etapas(e,tipo){
 function arco(s){
   const g=$('arco');g.innerHTML='';const cx=110,cy=112,r=92,pct=Math.min(1,s.contexto/s.janela);
   const P=(a,rr)=>[cx-rr*Math.cos(a*Math.PI),cy-rr*Math.sin(a*Math.PI)];
-  const arc=(a0,a1,rr)=>{const[x0,y0]=P(a0,rr),[x1,y1]=P(a1,rr);return`M${x0} ${y0} A${rr} ${rr} 0 ${a1-a0>.5?1:0} 1 ${x1} ${y1}`};
+  const arc=(a0,a1,rr)=>{const[x0,y0]=P(a0,rr),[x1,y1]=P(a1,rr);return`M${x0} ${y0} A${rr} ${rr} 0 0 1 ${x1} ${y1}`};
   g.append(el('path',{d:arc(0,1,r),class:'s-forte'}));g.append(el('path',{d:arc(0,1,r-14),class:'s-traco'}));
   for(let i=0;i<=40;i++){const a=i/40,[x0,y0]=P(a,r+3),[x1,y1]=P(a,r+(i%10?7:12));g.append(el('line',{x1:x0,y1:y0,x2:x1,y2:y1,class:i%10?'s-traco':'s-forte'}))}
   g.append(el('path',{d:arc(0,pct,r-7),class:'s-acento','stroke-width':5}));
