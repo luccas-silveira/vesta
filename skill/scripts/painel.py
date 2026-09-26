@@ -161,7 +161,9 @@ def dados(r):
         e, erro = None, str(err)
     fs = features(r)
     atual = (feature_do_plano(fs, e['plano']) if e else None) or (fs[0] if fs else None)
-    return {'projeto': os.path.basename(r),
+    casa = os.path.expanduser('~')
+    caminho = '~' + r[len(casa):] if r.startswith(casa + os.sep) else r
+    return {'projeto': os.path.basename(r), 'caminho': caminho,
             'momento': {'tipo': 'ilegivel', 'texto': 'Estado ilegível'} if erro else momento(e),
             'estado': e, 'erro': erro, 'features': fs, 'atual': atual,
             'tempos': tempo_etapas(r, e) if e else {}, 'sessao': sessao(r)}

@@ -140,7 +140,7 @@ svg text{font:500 8.5px var(--f-micro);fill:var(--tinta-3);letter-spacing:.06em}
 <div class="borda e"></div><div class="borda d"></div>
 
 <header class="topo">
-  <div><div class="micro">vesta // painel de execução</div><h1 id="projeto">—</h1></div>
+  <div><div class="micro">projeto</div><h1 id="projeto">—</h1><div class="micro" id="caminho" style="margin-top:6px;text-transform:none">—</div></div>
   <div class="dados">
     <div class="micro">plano<b id="plano-nome">—</b></div>
     <div class="micro">sincronia<b><span class="vivo" style="color:var(--acento)">●</span> <span id="idade">—</span></b></div>
@@ -338,7 +338,7 @@ function render(){
   const tipo=D.momento.tipo,e=D.estado,m=E[tipo];document.body.dataset.estado=tipo;
   document.querySelectorAll('[data-so]').forEach(x=>x.hidden=!x.dataset.so.split(' ').includes(tipo));
   document.querySelectorAll('[data-nao]').forEach(x=>x.hidden=x.dataset.nao.split(' ').includes(tipo));
-  $('projeto').textContent=D.projeto;document.title='Vesta · '+D.projeto;
+  $('projeto').textContent=D.projeto;$('caminho').textContent=D.caminho;document.title=D.projeto+' · Vesta';
   $('plano-nome').textContent=e?e.plano.split('/').pop():'—';
   $('palavra').textContent=m.p;$('desc').textContent=m.d;$('obs').textContent=D.momento.texto;selo(m.selo);
   const pend=e&&e.etapas.find(x=>x.status!=='feita');

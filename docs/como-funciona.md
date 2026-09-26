@@ -22,6 +22,7 @@ Cada projeto guarda o estado da execução em `.claude/vesta/estado.json`. A pas
 - `retomar`: destrava etapas travadas, zera contadores e passa a execução para a sessão atual.
 - `adicionar`: acrescenta etapas a uma execução (por exemplo, um ajuste pedido na parada 2).
 - `fechar`: apaga o estado.
+- `painel`: sobe o painel do projeto, abre no navegador e imprime a url (`/vesta-painel`).
 - `guarda`: imprime o trecho de shell que embrulha o hook Stop de outra ferramenta.
 - `silenciar`: usado por esse trecho; sai 0 só quando a parada atual vai ser bloqueada pela Vesta.
 

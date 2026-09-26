@@ -21,7 +21,7 @@ ligar() {
 
 mkdir -p "$CLAUDE_HOME/skills" "$CLAUDE_HOME/commands"
 ligar "$CLAUDE_HOME/skills/vesta" "$REPO/skill"
-for c in vesta-retomar.md vesta-pausar.md; do
+for c in vesta-retomar.md vesta-pausar.md vesta-painel.md; do
   ligar "$CLAUDE_HOME/commands/$c" "$REPO/commands/$c"
 done
 
