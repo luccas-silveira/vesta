@@ -167,6 +167,8 @@ ORIGINAIS = os.path.expanduser('~/Code/claude-tooling')
 # Ordem de data = ordem em que o original entrou no git do claude-tooling (git log --diff-filter=A):
 # 0016 às 12:17; 0017, spec, pesquisa e plano no mesmo commit das 14:27 (empate: ordem do plano);
 # 0018 às 15:58. O README de docs/decisoes/ lista os links nesta ordem.
+# 0021 nasceu direto aqui (2026-09-28); o original apontado não existe no claude-tooling,
+# e test_resto_igual_ao_original pula a comparação dele.
 HISTORIA = [
     ('0016-execucao-travada-por-provas.md', 'docs/decisions/0016-execucao-travada-por-provas.md'),
     ('0017-vesta.md', 'docs/decisions/0017-vesta.md'),
@@ -174,6 +176,7 @@ HISTORIA = [
     ('2026-09-25-execucao-travada-pesquisa.md', 'docs/vesta/research/2026-09-25-spec-flow-execucao-research.md'),
     ('2026-09-25-execucao-travada-plano.md', 'docs/vesta/plans/2026-09-25-spec-flow-execucao-parte-1.md'),
     ('0018-mockup-e-frontend-na-vesta.md', 'docs/decisions/0018-mockup-e-frontend-na-vesta.md'),
+    ('0021-vesta-interface.md', 'docs/decisions/0021-vesta-interface.md'),
 ]
 MOCKUP = os.path.join(RAIZ, 'docs', 'exemplo', 'mockup', 'index.html')
 EXTERNO = re.compile(
@@ -253,6 +256,44 @@ class DocsEtapa5(unittest.TestCase):
         for rel in ['docs/decisoes/README.md', 'docs/exemplo/mockup/index.html']:
             with self.subTest(arquivo=rel):
                 self.assertIn(rel, links)
+
+
+ADR_0021 = os.path.join(DECISOES, '0021-vesta-interface.md')
+
+
+class DocsEtapa12(unittest.TestCase):
+    def setUp(self):
+        self.texto = ler(ADR_0021)
+        self.linhas = self.texto.splitlines()
+
+    def test_adr_0021_comeca_pelo_aviso(self):
+        self.assertEqual(self.linhas[0], AVISO)
+
+    def test_adr_0021_tem_titulo(self):
+        titulos = [l for l in self.linhas if l.startswith('# ')]
+        self.assertEqual(len(titulos), 1)
+        self.assertRegex(titulos[0], r'^# ADR-0021 — \S')
+
+    def test_adr_0021_tem_data_e_status(self):
+        self.assertIn('Data: 2026-09-28. Status: em vigor. Reverte em parte o ADR-0018.', self.linhas)
+
+    def test_adr_0021_tem_secoes_na_ordem(self):
+        titulos = ['## Contexto', '## A decisão', '## O que se perde']
+        for t in titulos:
+            with self.subTest(secao=t):
+                self.assertIn(t, self.linhas)
+        posicoes = [self.linhas.index(t) for t in titulos]
+        self.assertEqual(posicoes, sorted(posicoes))
+
+    def test_o_que_se_perde_cita_os_quatro(self):
+        s = secao(self.texto, '## O que se perde').lower()
+        for termo in ['live', 'imagem gerada', 'nativ', 'gráfico', 'stack']:
+            with self.subTest(termo=termo):
+                self.assertIn(termo, s)
+
+    def test_historia_termina_no_0021(self):
+        self.assertEqual(HISTORIA[-1][0], '0021-vesta-interface.md')
+        self.assertFalse(os.path.exists(os.path.join(ORIGINAIS, HISTORIA[-1][1])))
 
 
 if __name__ == '__main__':
