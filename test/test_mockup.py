@@ -64,6 +64,47 @@ class TestVestaInterface(unittest.TestCase):
                         'falta oferecer os dois caminhos: com questionário e sem (direto)')
 
 
+# etapa 15 da vesta-interface: o questionário vai pelo menu do AskUserQuestion, como no SKILL.md dela
+UMA_POR_CHAMADA = (r'\buma (só )?pergunta (só )?(por|em cada|a cada|de cada) chamada'
+                   r'|\bcada chamada\b[^.]*\b(uma (só )?pergunta|só uma pergunta)')
+VARIAS_POR_CHAMADA = (r'\b(várias|varias|até \d+|até (duas|três|quatro)|mais de uma|\d+) perguntas'
+                      r' (por|numa|em uma|na mesma|de uma vez na) chamada')
+RECOMENDADA_PRIMEIRO = (r'recomend[^.]*\b(em primeiro|primeira|primeiro lugar|no topo|à frente)'
+                        r'|\b(em primeiro|primeira|primeiro lugar|no topo)\b[^.]*recomend')
+
+
+class TestQuestionarioPorMenu(unittest.TestCase):
+    def questionario(self):
+        ps = com(r'askuserquestion')
+        self.assertTrue(ps, 'o questionário não cita a ferramenta AskUserQuestion')
+        return ps
+
+    def test_nome_da_ferramenta_com_a_caixa_certa(self):
+        with open(MOCKUP) as f:
+            self.assertIn('AskUserQuestion', f.read())
+
+    def test_uma_pergunta_por_chamada(self):
+        ps = self.questionario()
+        self.assertTrue(any(re.search(UMA_POR_CHAMADA, p) for p in ps),
+                        'falta dizer que cada chamada do AskUserQuestion leva uma pergunta só')
+        self.assertFalse([p for p in paragrafos() if re.search(VARIAS_POR_CHAMADA, p)],
+                         'o questionário junta várias perguntas numa chamada')
+
+    def test_recomendada_em_primeiro_e_marcada_recomendado(self):
+        ps = [p for p in self.questionario() if '(recomendado)' in p]
+        self.assertTrue(ps, 'falta marcar a opção recomendada com "(Recomendado)"')
+        self.assertTrue(any(re.search(RECOMENDADA_PRIMEIRO, p) for p in ps),
+                        'a opção recomendada não vem em primeiro')
+
+    def test_aceita_resposta_livre_outro(self):
+        self.assertTrue([p for p in self.questionario() if re.search(r'\boutro\b', p) and 'livre' in p],
+                        'falta aceitar a resposta livre ("Outro") do usuário')
+
+    def test_perguntas_nao_sao_mais_no_chat(self):
+        self.assertFalse([p for p in com(r'question[áa]rio|pergunt') if re.search(r'\bchat\b', p)],
+                         'o questionário ainda manda perguntar no chat')
+
+
 class TestDuasDirecoes(unittest.TestCase):
     def test_duas_direcoes_na_tela_nova_uma_do_catalogo(self):
         ps = com(r'(duas|2)\s+dire[çc]')
