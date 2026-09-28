@@ -25,8 +25,9 @@ fase acrescenta só o que está abaixo.
 As referências vêm do inspo. Use as que estão no dossiê. Pesquisa pulada ou dossiê sem
 referência visual: chame agora o `recommend` do MCP inspo com o brief da spec.
 
-Ofereça ao usuário a bifurcação da vesta-interface: com questionário (perguntas de design no
-chat, uma por vez, com a sua recomendação) ou direto (você deduz as respostas e mostra junto do
+Ofereça ao usuário a bifurcação da vesta-interface: com questionário (perguntas de design com a
+ferramenta `AskUserQuestion`, uma pergunta por chamada, a opção recomendada em primeiro lugar e
+marcada "(Recomendado)", e a resposta livre ("Outro") aceita) ou direto (você deduz as respostas e mostra junto do
 mockup). Padrão: tela nova com questionário, tela que já existe direto.
 
 O texto é o da spec. Faltando texto, pergunte: a vesta-interface não inventa copy, e o mockup
