@@ -106,12 +106,22 @@ class TestQuestionarioPorMenu(unittest.TestCase):
 
 
 class TestDuasDirecoes(unittest.TestCase):
-    def test_duas_direcoes_na_tela_nova_uma_do_catalogo(self):
+    def test_duas_direcoes_na_tela_nova_seguem_o_passo_3_da_vesta_interface(self):
+        # etapa 18 da vesta-interface: de onde vem cada direção e como o usuário escolhe mora no passo 3 dela
         ps = com(r'(duas|2)\s+dire[çc]')
         self.assertTrue(ps, 'falta a regra das duas direções visuais')
         self.assertTrue(any('tela nova' in p for p in ps), 'as duas direções não são da tela nova')
-        self.assertTrue(any('catalogo/direcoes/' in p for p in ps),
-                        'falta dizer que uma direção pode vir de catalogo/direcoes/')
+        self.assertTrue(any(re.search(r'passo 3', p) and 'vesta-interface' in p and re.search(r'escolh', p)
+                            for p in ps if 'tela nova' in p),
+                        'falta dizer que as duas direções e a escolha seguem o passo 3 da vesta-interface')
+
+    def test_duas_direcoes_sem_segundo_processo(self):
+        # o passo 3 da vesta-interface já diz de onde vem cada direção, onde fica cada mockup e quando
+        # o usuário escolhe; repetir aqui abre um segundo processo que diverge dele
+        segundo = (r'catalogo/direcoes|refer[êe]ncia diferente|\binspo\b|\babas\b|se[çc][õo]es ou'
+                   r'|mesmo mockup|escolh\w*[^.]*\bna aprova[çc][ãa]o')
+        achados = [p for p in com(r'(duas|2)\s+dire[çc]') if re.search(segundo, p)]
+        self.assertEqual(achados, [], 'mockup.md descreve de novo como fazer e escolher as duas direções')
 
     def test_usuario_escolhe_e_resto_so_na_escolhida(self):
         ps = [p for p in com(r'dire[çc]') if re.search(r'escolh', p)]
