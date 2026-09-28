@@ -25,7 +25,7 @@ for c in vesta-retomar.md vesta-pausar.md vesta-painel.md; do
   ligar "$CLAUDE_HOME/commands/$c" "$REPO/commands/$c"
 done
 
-for s in grill-me hallmark; do
+for s in grill-me vesta-interface; do
   [ -f "$CLAUDE_HOME/skills/$s/SKILL.md" ] || echo "aviso: skill $s ausente em $CLAUDE_HOME/skills/$s"
 done
 

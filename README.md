@@ -76,9 +76,9 @@ a fila esvazia e você confirma que não há galho aberto.
 ### Mockup e plano
 
 Fontes: `skill/mockup.md` e `skill/plano.md`. Entrada: a spec revisada. Com tela, primeiro um
-HTML autocontido feito com a hallmark e referências do inspo, commitado em
-`docs/vesta/mockups/`, e a **parada do mockup** espera o seu sim. Depois o plano em
-`docs/vesta/plans/`: etapas da mais simples à mais complexa, cada uma com arquivos, o que prova
+mockup feito com a vesta-interface e referências do inspo (rota do app no React, HTML
+autocontido fora dele), com a página commitada em `docs/vesta/mockups/`, e a **parada do
+mockup** espera o seu sim. Depois o plano em `docs/vesta/plans/`: etapas da mais simples à mais complexa, cada uma com arquivos, o que prova
 e como fazer, e o estado da execução criado pelo script. Para na **parada 1**: você aprova o
 plano.
 
@@ -171,7 +171,7 @@ O `install.sh` liga:
   `commands/`.
 
 O que já existia nesses lugares é guardado com o sufixo `.antes-da-vesta-<data>`. Ele só avisa,
-sem mexer, quando falta a skill `grill-me` ou `hallmark`, quando o MCP inspo não está no
+sem mexer, quando falta a skill `grill-me` ou `vesta-interface`, quando o MCP inspo não está no
 `~/.claude.json`, quando o `~/.claude/settings.json` ainda tem hooks da Vesta (rodariam duas
 vezes) e quando o hook Stop do supacode está sem a guarda `vesta.py silenciar`.
 

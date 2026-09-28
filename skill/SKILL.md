@@ -38,7 +38,7 @@ Crie um todo por fase, na ordem, antes de começar.
 - Spec decomposta em sub-projetos: cada sub-projeto roda o ciclo inteiro sozinho.
   Não pesquise/grille os quatro de uma vez.
 - Todas as fases: leia o `.md` correspondente nesta pasta na hora de entrar na fase, não antes.
-- Frontend na Vesta usa o inspo (referências reais) e a hallmark (design).
+- Frontend na Vesta usa a vesta-interface (design e verificação), com o inspo nas referências reais.
 - Tudo que tem tela passa por mockup aprovado antes da execução, inclusive no caminho pequeno.
   A única exceção é não ter nada visível. O script recusa iniciar plano com tela sem mockup
   commitado.

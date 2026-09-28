@@ -78,7 +78,7 @@ Regras:
 - Rode o comando de teste antes de responder.
 - Não rode commit e não abra subagentes.
 {só em etapa com Tela: sim}
-- Antes de escrever código de tela, leia ~/.claude/skills/hallmark/SKILL.md e siga.
+- Antes de escrever código de tela, leia ~/.claude/skills/vesta-interface/SKILL.md e siga.
 - O mockup aprovado em {caminho do mockup} é a referência: a tela sai igual a ele.
 
 Responda com o status (DONE ou BLOCKED) e os arquivos mudados.
