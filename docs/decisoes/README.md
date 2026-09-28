@@ -8,3 +8,4 @@ Registro de como a Vesta foi decidida, em ordem de data. O funcionamento atual e
 - [Pesquisa — spec-flow, fase 5](2026-09-25-execucao-travada-pesquisa.md)
 - [spec-flow, fase 5, parte 1 — trava e prova de teste — Plano de implementação](2026-09-25-execucao-travada-plano.md)
 - [ADR-0018 — Frontend na Vesta passa por inspo, hallmark e mockup aprovado](0018-mockup-e-frontend-na-vesta.md)
+- [ADR-0021 — A camada de interface da Vesta passa a ser a vesta-interface](0021-vesta-interface.md)
