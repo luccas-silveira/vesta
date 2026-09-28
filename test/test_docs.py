@@ -150,7 +150,7 @@ class DocsEtapa4(unittest.TestCase):
 
     def test_dependencias_cita_ferramentas(self):
         texto = self.texto('docs/dependencias.md')
-        for nome in ['grill-me', 'hallmark', 'inspo', 'superpowers', 'supacode']:
+        for nome in ['grill-me', 'vesta-interface', 'inspo', 'superpowers', 'supacode']:
             with self.subTest(nome=nome):
                 self.assertIn(nome, texto)
 

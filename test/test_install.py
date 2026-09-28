@@ -25,7 +25,7 @@ class Instalador(unittest.TestCase):
         self.home = os.path.join(self.tmp, 'home', '.claude')
         os.makedirs(self.home)
         self.claude_json({'mcpServers': {'inspo': {'command': 'x'}}})
-        for s in ('grill-me', 'hallmark'):
+        for s in ('grill-me', 'vesta-interface'):
             self.escrever(os.path.join('skills', s, 'SKILL.md'), 'x')
 
     def tearDown(self):
@@ -114,13 +114,18 @@ class Instalador(unittest.TestCase):
         shutil.rmtree(self.p('skills', 'grill-me'))
         a = self.avisos(self.rodar())
         self.assertTrue(any('grill-me' in l for l in a), a)
-        self.assertFalse(any('hallmark' in l for l in a), a)
+        self.assertFalse(any('vesta-interface' in l for l in a), a)
 
-    def test_sem_hallmark_avisa(self):
-        shutil.rmtree(self.p('skills', 'hallmark'))
+    def test_sem_vesta_interface_avisa(self):
+        shutil.rmtree(self.p('skills', 'vesta-interface'))
         a = self.avisos(self.rodar())
-        self.assertTrue(any('hallmark' in l for l in a), a)
+        self.assertTrue(any('skill vesta-interface ausente' in l for l in a), a)
         self.assertFalse(any('grill-me' in l for l in a), a)
+
+    def test_sem_hallmark_nao_avisa(self):
+        self.assertFalse(os.path.exists(self.p('skills', 'hallmark')))
+        a = self.avisos(self.rodar())
+        self.assertFalse(any('hallmark' in l.lower() for l in a), a)
 
     def test_tudo_presente_nenhum_aviso(self):
         self.assertEqual(self.avisos(self.rodar()), [])

@@ -1,4 +1,4 @@
-"""Testes do texto de skill/mockup.md: barra de conteúdo, duas direções, autoverificação."""
+"""Testes do texto de skill/mockup.md: barra de conteúdo, vesta-interface, questionário, direções, rota, verificação."""
 import os
 import re
 import unittest
@@ -48,12 +48,29 @@ class TestBarraDeConteudo(unittest.TestCase):
                         'falta dado de exemplo realista (nomes, valores, datas)')
 
 
+class TestVestaInterface(unittest.TestCase):
+    def test_manda_ler_skill_md_da_vesta_interface(self):
+        self.assertIn('~/.claude/skills/vesta-interface/skill.md', texto(),
+                      'mockup.md não manda ler ~/.claude/skills/vesta-interface/SKILL.md')
+
+    def test_nao_cita_hallmark(self):
+        self.assertNotIn('hallmark', texto())
+
+    def test_bifurcacao_com_e_sem_questionario(self):
+        ps = com(r'question[áa]rio')
+        self.assertTrue(ps, 'falta a bifurcação do questionário')
+        self.assertTrue(any(re.search(r'com question[áa]rio', p)
+                            and re.search(r'sem question[áa]rio|\bdireto\b', p) for p in ps),
+                        'falta oferecer os dois caminhos: com questionário e sem (direto)')
+
+
 class TestDuasDirecoes(unittest.TestCase):
-    def test_duas_direcoes_de_referencias_diferentes(self):
+    def test_duas_direcoes_na_tela_nova_uma_do_catalogo(self):
         ps = com(r'(duas|2)\s+dire[çc]')
         self.assertTrue(ps, 'falta a regra das duas direções visuais')
-        self.assertTrue(any('inspo' in p or 'refer' in p for p in ps),
-                        'as direções não partem de referências do inspo')
+        self.assertTrue(any('tela nova' in p for p in ps), 'as duas direções não são da tela nova')
+        self.assertTrue(any('catalogo/direcoes/' in p for p in ps),
+                        'falta dizer que uma direção pode vir de catalogo/direcoes/')
 
     def test_usuario_escolhe_e_resto_so_na_escolhida(self):
         ps = [p for p in com(r'dire[çc]') if re.search(r'escolh', p)]
@@ -66,23 +83,32 @@ class TestDuasDirecoes(unittest.TestCase):
         self.assertTrue(ps, 'tela existente não é declarada exceção às duas direções')
 
 
+class TestRotaReact(unittest.TestCase):
+    def test_mockup_react_vive_em_rota_do_app(self):
+        self.assertTrue([p for p in com(r'\brota') if 'react' in p],
+                        'falta o mockup React numa rota do app')
+
+    def test_pagina_de_registro_com_prints_e_link_da_rota(self):
+        ps = [p for p in com(r'\brota') if 'docs/vesta/mockups/' in p and 'index.html' in p]
+        self.assertTrue(ps, 'falta a página de registro em docs/vesta/mockups/<data>-<feature>/index.html')
+        self.assertTrue(any(all(t in p for t in ('print', 'celular', 'desktop', 'link')) for p in ps),
+                        'a página de registro não traz prints celular e desktop e o link da rota')
+
+
 class TestAutoverificacao(unittest.TestCase):
-    def test_screenshot_celular_e_desktop_via_playwright(self):
-        ps = com(r'screenshot|\bprints?\b|captura')
-        junto = ' '.join(ps)
-        for termo in ('playwright', 'celular', 'desktop'):
-            self.assertIn(termo, junto, f'autoverificação sem {termo}')
+    def test_segue_verificacao_da_vesta_interface(self):
+        ps = com(r'referencias/verificacao\.md')
+        self.assertTrue(ps, 'autoverificação não aponta referencias/verificacao.md')
+        self.assertTrue(any('vesta-interface' in p for p in ps),
+                        'referencias/verificacao.md citado sem dizer que é da vesta-interface')
 
-    def test_confere_conteudo_referencias_e_wireframe(self):
-        junto = ' '.join(com(r'screenshot|\bprints?\b|captura|autoverifica'))
-        self.assertIn('wireframe', junto, 'falta o critério anti-wireframe')
-        self.assertRegex(junto, r'inspo|refer', 'falta conferir o nível das referências')
-        self.assertRegex(junto, r'lista|conteúdo', 'falta conferir a lista de conteúdo')
+    def test_prints_celular_e_desktop(self):
+        junto = ' '.join(com(r'\bprints?\b|screenshot'))
+        for termo in ('celular', 'desktop'):
+            self.assertIn(termo, junto, f'autoverificação sem print de {termo}')
 
-    def test_corrige_e_refaz_prints_antes_de_mostrar(self):
-        ps = com(r'screenshot|\bprints?\b|captura')
-        self.assertTrue(any(re.search(r'refa[zç]|de novo|novamente', p) and 'antes' in p for p in ps),
-                        'falta corrigir e refazer os prints antes de mostrar')
+    def test_no_maximo_3_rodadas(self):
+        self.assertRegex(texto(), r'\b(3|três) rodadas', 'falta o limite de 3 rodadas')
 
 
 class TestParada(unittest.TestCase):
