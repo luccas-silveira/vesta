@@ -36,11 +36,11 @@ com texto de mentira esconde problema de layout.
 Tela que já existe e está mudando: o mockup reproduz a tela atual com a mudança aplicada, no
 estilo que o projeto já tem. Não é hora de redesenhar o que a spec não pediu.
 
-Tela nova: desenhe duas direções visuais para a tela principal, cada uma partindo de uma
-referência diferente do inspo; uma delas pode vir de `catalogo/direcoes/` da vesta-interface. As
-duas vão como seções ou abas no mesmo mockup. O usuário escolhe uma na aprovação, e só então
-você completa as demais telas na direção escolhida. Tela que já existe e está mudando fica fora
-disso: uma direção só, no estilo atual.
+Tela nova: as duas direções visuais e a escolha do usuário seguem o passo 3 da vesta-interface.
+Só depois que o usuário escolhe uma você completa as demais telas na direção escolhida.
+
+Tela que já existe e está mudando fica fora disso: uma direção só, no estilo atual, sem trocar por
+outra de `catalogo/direcoes/`.
 
 ## O arquivo
 
