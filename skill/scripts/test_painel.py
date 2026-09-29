@@ -715,5 +715,300 @@ class Pagina(unittest.TestCase):
         self.assertNotRegex(self.h, r"document\.title\s*=\s*['\"`]Vesta")
 
 
+# Rodada, etapa 1 — formatos escolhidos aqui (o plano deixou em aberto):
+# - "inicio" é a hora da última invocação da skill vesta; "sessoes" traz o nome do .jsonl sem
+#   extensão; fase sem marco não tem hora conferida; item de pergunta é conferido só pelas chaves
+#   que o plano lista. Horas conferidas em America/Sao_Paulo (UTC-3), então 12:00Z vira 09:00.
+# - Se a própria invocação entra na atividade ficou em aberto; os testes não dependem disso.
+FASES = ['ativacao', 'spec', 'pesquisa', 'grill', 'mockup', 'plano', 'execucao', 'concluida']
+
+
+def ts(minuto):
+    return f'2026-01-01T12:{minuto:02d}:00.000Z'
+
+
+def usar(id_, nome, entrada, minuto):
+    return {'type': 'assistant', 'timestamp': ts(minuto), 'message': {
+        'role': 'assistant', 'content': [{'type': 'tool_use', 'id': id_, 'name': nome, 'input': entrada}]}}
+
+
+def ativar(minuto, id_='sk'):
+    return usar(id_, 'Skill', {'skill': 'vesta'}, minuto)
+
+
+def ler_md(nome, minuto, id_=None, pasta='/h/.claude/skills/vesta'):
+    return usar(id_ or f'rd-{nome}-{minuto}', 'Read', {'file_path': f'{pasta}/{nome}.md'}, minuto)
+
+
+def texto(t, minuto):
+    return {'type': 'assistant', 'timestamp': ts(minuto),
+            'message': {'role': 'assistant', 'content': [{'type': 'text', 'text': t}]}}
+
+
+def questao(q, header, rotulos, multi=False):
+    return {'question': q, 'header': header, 'multiSelect': multi,
+            'options': [{'label': r, 'description': ''} for r in rotulos]}
+
+
+def perguntar(id_, questoes, minuto):
+    return usar(id_, 'AskUserQuestion', {'questions': questoes}, minuto)
+
+
+def responder(id_, questoes, respostas, minuto):
+    return {'type': 'user', 'timestamp': ts(minuto), 'toolUseResult': {
+        'questions': questoes, 'answers': respostas}, 'message': {'role': 'user', 'content': [
+            {'type': 'tool_result', 'tool_use_id': id_, 'content': 'ok'}]}}
+
+
+class RodadaBase(SessaoBase):
+    def setUp(self):
+        super().setUp()
+        self.addCleanup(time.tzset)
+        p = mock.patch.dict(os.environ, {'TZ': 'America/Sao_Paulo'})
+        p.start()
+        self.addCleanup(p.stop)
+        time.tzset()
+
+    def rodada(self, linhas):
+        self.jsonl('s1.jsonl', linhas)
+        return painel.rodada(self.r)
+
+    def estados(self, d):
+        return {f['id'] if 'id' in f else n: f['estado'] for n, f in zip(FASES, d['fases'])}
+
+    def respostas(self, linhas):
+        p = os.path.join(self.home.name, '.claude', 'vesta', 'respostas.jsonl')
+        os.makedirs(os.path.dirname(p), exist_ok=True)
+        with open(p, 'w') as f:
+            f.write('\n'.join(l if isinstance(l, str) else json.dumps(l) for l in linhas) + '\n')
+
+
+class RodadaFormato(RodadaBase):
+    def test_sem_registro_e_sem(self):
+        self.assertEqual(painel.rodada(self.r)['formato'], 'sem')
+
+    def test_registro_sem_invocacao_e_nenhuma(self):
+        d = self.rodada([texto('oi', 0), ler_md('spec', 1),
+                         usar('o', 'Skill', {'skill': 'vesta-interface'}, 2)])
+        self.assertEqual(d['formato'], 'nenhuma')
+
+    def test_content_fora_de_lista_e_desconhecido(self):
+        d = self.rodada([
+            {'type': 'assistant', 'timestamp': ts(0), 'message': {'content': 'Skill vesta'}},
+            {'type': 'user', 'timestamp': ts(1), 'message': {'content': 'skills/vesta/spec.md'}},
+            {'outra': 'coisa'}])
+        self.assertEqual(d['formato'], 'desconhecido')
+        self.assertFalse(d.get('fases'))
+        self.assertFalse(d.get('historico'))
+        self.assertFalse(d.get('atividade'))
+
+    def test_com_invocacao_tem_formato_de_rodada_e_sessao(self):
+        d = self.rodada([texto('antes', 0), ativar(3)])
+        self.assertNotIn(d['formato'], ('sem', 'nenhuma', 'desconhecido'))
+        self.assertEqual(d['sessoes'], ['s1'])
+        self.assertEqual(d['inicio'], '09:03')
+
+    def test_registro_do_sdk_nao_e_usado(self):
+        cli = self.jsonl('a.jsonl', [dict(ativar(0), entrypoint='cli'), ler_md('grill', 1)], 1_000)
+        self.jsonl('b.jsonl', [dict(texto('revisor', 0), entrypoint='sdk-py')], 2_000)
+        d = painel.rodada(self.r)
+        self.assertEqual(d['sessoes'], [os.path.basename(cli)[:-6]])
+        self.assertEqual(self.estados(d)['grill'], 'atual')
+
+    def test_le_o_registro_mais_recente(self):
+        self.jsonl('velho.jsonl', [ativar(0), ler_md('plano', 1)], 1_000)
+        self.jsonl('novo.jsonl', [ativar(0), ler_md('spec', 1)], 2_000)
+        d = painel.rodada(self.r)
+        self.assertEqual(d['sessoes'], ['novo'])
+        self.assertEqual(self.estados(d)['spec'], 'atual')
+
+    def test_linha_ilegivel_no_meio_e_pulada(self):
+        q = [questao('Depois?', 'H', ['A'])]
+        d = self.rodada([ativar(0), '{quebrado', ler_md('spec', 1), '[1, 2', perguntar('q', q, 2)])
+        self.assertEqual(self.estados(d)['spec'], 'atual')
+        self.assertEqual([h.get('pergunta') for h in d['historico']], ['Depois?'])
+
+    def test_dados_traz_a_rodada(self):
+        self.jsonl('s1.jsonl', [ativar(0), ler_md('spec', 1)])
+        self.assertEqual(painel.dados(self.r)['rodada'], painel.rodada(self.r))
+        self.jsonl('s1.jsonl', [texto('nada', 0)])
+        self.assertEqual(painel.dados(self.r)['rodada']['formato'], 'nenhuma')
+
+
+class RodadaFases(RodadaBase):
+    def test_so_ativacao_e_atual_e_resto_pendente(self):
+        d = self.rodada([ativar(0)])
+        self.assertEqual([f['estado'] for f in d['fases']], ['atual'] + ['pendente'] * 7)
+        self.assertEqual(d['fases'][0]['hora'], '09:00')
+        self.assertEqual(len(d['fases']), 8)
+
+    def test_fases_na_ordem_com_estado_e_hora(self):
+        d = self.rodada([ativar(0)])
+        for f in d['fases']:
+            self.assertIn('estado', f)
+            self.assertIn('hora', f)
+        if 'id' in d['fases'][0]:
+            self.assertEqual([f['id'] for f in d['fases']], FASES)
+
+    def test_marcos_em_ordem_feita_ate_a_atual(self):
+        d = self.rodada([ativar(0), ler_md('spec', 5), ler_md('research', 10),
+                         ler_md('grill', 15), ler_md('mockup', 20)])
+        self.assertEqual([f['estado'] for f in d['fases']],
+                         ['feita', 'feita', 'feita', 'feita', 'atual', 'pendente', 'pendente', 'pendente'])
+        self.assertEqual([f['hora'] for f in d['fases'][:5]],
+                         ['09:00', '09:05', '09:10', '09:15', '09:20'])
+
+    def test_fase_sem_marco_antes_da_atual_e_pulada(self):
+        d = self.rodada([ativar(0), ler_md('spec', 1), ler_md('grill', 2)])
+        self.assertEqual([f['estado'] for f in d['fases']],
+                         ['feita', 'feita', 'pulada', 'atual', 'pendente', 'pendente', 'pendente', 'pendente'])
+
+    def test_marco_por_bash_e_pelo_caminho_do_repositorio(self):
+        d = self.rodada([ativar(0), usar('b', 'Bash', {'command': 'cat ~/.claude/skills/vesta/research.md'}, 1),
+                         usar('c', 'Bash', {'command': 'sed -n 1,40p /u/Code/vesta/skill/plano.md'}, 2)])
+        self.assertEqual([f['estado'] for f in d['fases']],
+                         ['feita', 'pulada', 'feita', 'pulada', 'pulada', 'atual', 'pendente', 'pendente'])
+        self.assertEqual(d['fases'][2]['hora'], '09:01')
+
+    def test_read_pelo_caminho_do_repositorio(self):
+        d = self.rodada([ativar(0), ler_md('execucao', 1, pasta='/u/Code/vesta/skill')])
+        self.assertEqual(self.estados(d)['execucao'], 'atual')
+
+    def test_marco_em_outra_ferramenta_nao_conta(self):
+        d = self.rodada([ativar(0), usar('g', 'Grep', {'pattern': 'x', 'path': '/h/.claude/skills/vesta/spec.md'}, 1),
+                         usar('e', 'Edit', {'file_path': '/h/.claude/skills/vesta/grill.md'}, 2)])
+        self.assertEqual(self.estados(d)['ativacao'], 'atual')
+
+    def test_execucao_por_vesta_py_criar_e_iniciar(self):
+        for sub in ('criar', 'iniciar'):
+            with self.subTest(sub=sub):
+                d = self.rodada([ativar(0), ler_md('spec', 1),
+                                 usar('v', 'Bash', {'command': f'python3 ~/.claude/skills/vesta/scripts/vesta.py {sub} plano.md'}, 7)])
+                self.assertEqual([f['estado'] for f in d['fases']],
+                                 ['feita', 'feita', 'pulada', 'pulada', 'pulada', 'pulada', 'atual', 'pendente'])
+                self.assertEqual(d['fases'][6]['hora'], '09:07')
+
+    def test_vesta_interface_nao_conta_como_fase(self):
+        d = self.rodada([ativar(0), ler_md('spec', 1),
+                         ler_md('mockup', 2, pasta='/h/.claude/skills/vesta-interface'),
+                         usar('b', 'Bash', {'command': 'cat ~/.claude/skills/vesta-interface/plano.md'}, 3)])
+        self.assertEqual([f['estado'] for f in d['fases']],
+                         ['feita', 'atual'] + ['pendente'] * 6)
+
+    def test_concluida_quando_execucao_encerrada(self):
+        self.gravar(estado([etapa(1, 'feita'), etapa(2, 'feita')]))
+        d = self.rodada([ativar(0), ler_md('execucao', 1)])
+        self.assertEqual(self.estados(d)['concluida'], 'atual')
+        self.assertEqual(self.estados(d)['execucao'], 'feita')
+
+    def test_execucao_aberta_nao_conclui(self):
+        self.gravar(estado([etapa(1, 'feita'), etapa(2)]))
+        d = self.rodada([ativar(0), ler_md('execucao', 1)])
+        self.assertEqual(self.estados(d)['execucao'], 'atual')
+        self.assertEqual(self.estados(d)['concluida'], 'pendente')
+
+    def test_so_conta_depois_da_ultima_invocacao(self):
+        q = [questao('Velha?', 'V', ['A'])]
+        d = self.rodada([ativar(0, 'sk1'), ler_md('plano', 1), texto('velho', 2), perguntar('qv', q, 3),
+                         responder('qv', q, {'Velha?': 'A'}, 3),
+                         usar('rv', 'Read', {'file_path': '/x/velho.py'}, 4),
+                         ativar(10, 'sk2'), ler_md('spec', 11)])
+        self.assertEqual([f['estado'] for f in d['fases']], ['feita', 'atual'] + ['pendente'] * 6)
+        self.assertEqual(d['inicio'], '09:10')
+        self.assertEqual(d['historico'], [])
+        self.assertNotIn('/x/velho.py', [a['alvo'] for a in d['atividade']])
+        self.assertNotIn('Velha?', [a['alvo'] for a in d['atividade']])
+
+
+class RodadaHistorico(RodadaBase):
+    Q1 = [questao('Qual cor?', 'Cor', ['Azul', 'Verde'])]
+    Q2 = [questao('Quais telas?', 'Telas', ['Lista', 'Detalhe', 'Busca'], multi=True),
+          questao('Qual nome?', 'Nome', ['Vesta', 'Painel'])]
+    Q3 = [questao('Pode seguir?', 'Seguir', ['Sim', 'Não'])]
+
+    def registro(self):
+        return self.rodada([
+            texto('antes da rodada', 0), ativar(1), texto('Começando a spec.', 2),
+            perguntar('q1', self.Q1, 3), responder('q1', self.Q1, {'Qual cor?': 'Azul'}, 3),
+            perguntar('q2', self.Q2, 4),
+            responder('q2', self.Q2, {'Quais telas?': 'Lista, Busca', 'Qual nome?': 'Outro nome, Vesta'}, 4),
+            texto('Anotado.', 5), perguntar('q3', self.Q3, 6)])
+
+    def test_historico_em_ordem_com_mensagens_e_questoes(self):
+        self.respostas([{'tool_use_id': 'q1', 'onde': 'painel'}, '{quebrado',
+                        {'tool_use_id': 'q2', 'onde': 'knobler'}])
+        h = self.registro()['historico']
+        esperado = [
+            {'tipo': 'mensagem', 'texto': 'Começando a spec.', 'hora': '09:02'},
+            {'header': 'Cor', 'pergunta': 'Qual cor?', 'multipla': False, 'resposta': 'Azul',
+             'livre': False, 'onde': 'painel', 'hora': '09:03'},
+            {'header': 'Telas', 'pergunta': 'Quais telas?', 'multipla': True,
+             'resposta': 'Lista, Busca', 'livre': False, 'onde': 'knobler', 'hora': '09:04'},
+            {'header': 'Nome', 'pergunta': 'Qual nome?', 'multipla': False,
+             'resposta': 'Outro nome, Vesta', 'livre': True, 'onde': 'knobler', 'hora': '09:04'},
+            {'tipo': 'mensagem', 'texto': 'Anotado.', 'hora': '09:05'},
+            {'header': 'Seguir', 'pergunta': 'Pode seguir?', 'multipla': False, 'resposta': None,
+             'onde': 'terminal', 'hora': '09:06'},
+        ]
+        self.assertEqual(len(h), len(esperado))
+        for item, esp in zip(h, esperado):
+            self.assertEqual({k: item.get(k, '<ausente>') for k in esp}, esp)
+
+    def test_sem_respostas_jsonl_tudo_e_terminal(self):
+        h = self.registro()['historico']
+        self.assertEqual([x['onde'] for x in h if 'pergunta' in x], ['terminal'] * 4)
+
+    def test_resposta_livre_de_questao_unica(self):
+        q = [questao('Qual cor?', 'Cor', ['Azul', 'Verde'])]
+        h = self.rodada([ativar(0), perguntar('q', q, 1),
+                         responder('q', q, {'Qual cor?': 'Um azul mais escuro'}, 1)])['historico']
+        self.assertEqual((h[0]['resposta'], h[0]['livre']), ('Um azul mais escuro', True))
+
+    def test_juncao_de_rotulos_nao_e_livre_e_rotulo_parcial_e(self):
+        q = [questao('Quais?', 'Q', ['A', 'B', 'C'], multi=True)]
+        for resp, livre in (('A, C', False), ('C, A, B', False), ('A,C', True), ('A, D', True)):
+            with self.subTest(resp=resp):
+                h = self.rodada([ativar(0), perguntar('q', q, 1),
+                                 responder('q', q, {'Quais?': resp}, 1)])['historico']
+                self.assertEqual(h[0]['livre'], livre)
+
+
+class RodadaAtividade(RodadaBase):
+    def test_alvo_por_ferramenta_do_mais_recente_ao_mais_antigo(self):
+        cmd = 'echo ' + 'x' * 200 + '\nsegunda linha'
+        usos = [('Read', {'file_path': '/a/r.py'}, '/a/r.py'),
+                ('Edit', {'file_path': '/a/e.py', 'old_string': 'a', 'new_string': 'b'}, '/a/e.py'),
+                ('Write', {'file_path': '/a/w.py', 'content': 'z'}, '/a/w.py'),
+                ('Bash', {'command': cmd, 'description': 'd'}, cmd[:120]),
+                ('Grep', {'pattern': 'def x', 'path': '/a'}, 'def x'),
+                ('Glob', {'pattern': '**/*.py'}, '**/*.py'),
+                ('WebFetch', {'url': 'https://ex.com', 'prompt': 'p'}, 'https://ex.com'),
+                ('WebSearch', {'query': 'kokoro tts'}, 'kokoro tts'),
+                ('Agent', {'description': 'Acha testes', 'prompt': 'p'}, 'Acha testes'),
+                ('Skill', {'skill': 'vesta-interface'}, 'vesta-interface'),
+                ('AskUserQuestion', {'questions': [questao('Primeira?', 'P', ['a']),
+                                                   questao('Segunda?', 'S', ['b'])]}, 'Primeira?'),
+                ('mcp__graft__graft_find_code', {'query': 'x'}, None),
+                ('TodoWrite', {'todos': []}, '')]
+        d = self.rodada([ativar(0)] + [usar(f'u{i}', n, e, i + 1) for i, (n, e, _) in enumerate(usos)])
+        topo = d['atividade'][:len(usos)]
+        esperado = [(re.sub(r'^mcp__.+?__', '', n), a) for n, _, a in reversed(usos)]
+        self.assertEqual([x['ferramenta'] for x in topo], [f for f, _ in esperado])
+        for x, (f, a) in zip(topo, esperado):
+            if a is not None:
+                self.assertEqual(x['alvo'], a, f)
+        self.assertEqual(topo[0]['hora'], f'09:{len(usos):02d}')
+        self.assertEqual(topo[-1]['hora'], '09:01')
+        self.assertIn(d['n_atividade'], (len(usos), len(usos) + 1))
+
+    def test_limite_de_200_com_total(self):
+        linhas = [ativar(0)] + [usar(f'b{i}', 'Bash', {'command': f'cmd {i}'}, 1) for i in range(250)]
+        d = self.rodada(linhas)
+        self.assertEqual(len(d['atividade']), 200)
+        self.assertEqual(d['atividade'][0]['alvo'], 'cmd 249')
+        self.assertEqual(d['atividade'][199]['alvo'], 'cmd 50')
+        self.assertIn(d['n_atividade'], (250, 251))
+
+
 if __name__ == '__main__':
     unittest.main()
