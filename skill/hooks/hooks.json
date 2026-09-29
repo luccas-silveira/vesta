@@ -12,6 +12,18 @@
         ]
       }
     ],
+    "PreToolUse": [
+      {
+        "matcher": "AskUserQuestion",
+        "hooks": [
+          {
+            "type": "command",
+            "timeout": 3660,
+            "command": "python3 \"${CLAUDE_PLUGIN_ROOT}/scripts/vesta.py\" hook-menu || true"
+          }
+        ]
+      }
+    ],
     "SessionStart": [
       {
         "hooks": [

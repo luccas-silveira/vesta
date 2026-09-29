@@ -562,11 +562,89 @@ def aviso_inicio(r, entrada):
     return None
 
 
+def pedir(url, corpo=None):
+    """JSON de uma chamada HTTP curta; erro de rede ou HTTP levanta."""
+    dados = None if corpo is None else json.dumps(corpo).encode()
+    with urllib.request.urlopen(urllib.request.Request(url, data=dados), timeout=1.5) as resp:
+        return json.load(resp)
+
+
+def texto_das(answers):
+    """{"<pergunta>": {"labels", "text"}} -> {"<pergunta>": texto}; texto livre vence os rótulos."""
+    return {q: a.get('text') or ', '.join(a.get('labels') or []) for q, a in answers.items()}
+
+
+def hook_menu(entrada):
+    """PreToolUse de AskUserQuestion: com a página do painel aberta, a pergunta vai ao painel e
+    ao Knobler; vale a 1ª resposta. Sem painel, prazo ou erro: sai mudo e o menu fica no terminal."""
+    import painel
+    import time
+    try:
+        url = painel.achar(raiz(entrada.get('cwd')))
+        if not url or pedir(f'{url}/aberto').get('aberto') is not True:
+            return None
+    except Exception:
+        return None
+    questions = (entrada.get('tool_input') or {}).get('questions')
+    tid = entrada.get('tool_use_id') or ''
+    id_ = f'menu-{tid}'
+    kn = f'http://localhost:{os.environ.get("KNOBLER_PORT", "4477")}'
+    try:
+        pedir(f'{kn}/ask', {'id': id_, 'source': os.path.basename(entrada.get('cwd') or ''),
+                            'questions': questions})
+        knobler = True
+    except Exception:
+        knobler = False
+    no_painel = True
+    fim = time.time() + float(os.environ.get('VESTA_PRAZO_MENU', 3600))
+    intervalo = float(os.environ.get('VESTA_INTERVALO_MENU', 1))
+    answers = None
+    try:
+        pedir(f'{url}/pergunta', {'id': id_, 'questions': questions, 'knobler': knobler})
+        while time.time() < fim and (knobler or no_painel):
+            if no_painel:
+                p = pedir(f'{url}/pergunta/{id_}')
+                if p.get('estado') == 'respondida':
+                    answers, onde = p['answers'], 'painel'
+                    break
+                no_painel = p.get('estado') != 'abandonada'
+            if knobler:
+                k = pedir(f'{kn}/ask/{id_}')
+                if k.get('answered'):
+                    answers, onde = k.get('answers') or {}, 'knobler'
+                    break
+                knobler = not k.get('cancelled')
+            time.sleep(intervalo)
+    except Exception:
+        pass
+    if answers is None or onde == 'painel':
+        try:
+            if knobler:
+                pedir(f'{kn}/ask/{id_}/cancel', {})
+        except Exception:
+            pass
+    if answers is None:
+        return None
+    if onde == 'knobler' and no_painel:
+        try:
+            pedir(f'{url}/pergunta/{id_}/encerrar', {'motivo': 'knobler'})
+        except Exception:
+            pass
+    pasta = os.path.join(os.path.expanduser('~'), '.claude', 'vesta')
+    os.makedirs(pasta, exist_ok=True)
+    with open(os.path.join(pasta, 'respostas.jsonl'), 'a') as f:
+        f.write(json.dumps({'tool_use_id': tid, 'onde': onde}) + '\n')
+    return {'hookSpecificOutput': {'hookEventName': 'PreToolUse', 'permissionDecision': 'allow',
+                                   'updatedInput': {'questions': questions,
+                                                    'answers': texto_das(answers)}}}
+
+
 COMANDOS = {'criar': cmd_criar, 'iniciar': cmd_iniciar, 'mostrar': cmd_mostrar,
             'prova': cmd_prova, 'concluir': cmd_concluir, 'retomar': cmd_retomar,
             'pausar': cmd_pausar, 'adicionar': cmd_adicionar, 'fechar': cmd_fechar,
             'guarda': cmd_guarda, 'painel': cmd_painel, 'aberto': cmd_aberto}
-HOOKS = {'hook-parada': hook_parada, 'hook-inicio': hook_inicio, 'hook-adocao': hook_adocao}
+HOOKS = {'hook-parada': hook_parada, 'hook-inicio': hook_inicio, 'hook-adocao': hook_adocao,
+         'hook-menu': hook_menu}
 
 
 def main(argv):
