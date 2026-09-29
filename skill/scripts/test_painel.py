@@ -470,6 +470,47 @@ class Servidor(ServidorBase):
         with open(os.path.join(AQUI, 'painel.html'), 'rb') as f:
             self.assertEqual(corpo, f.read())
 
+    def _pagina(self):
+        return self.get('/')[2].decode()
+
+    def test_pagina_tem_os_oito_widgets_e_novos(self):
+        h = self._pagina()
+        for i in ('dias', 'seq-bar', 'radar', 'onda', 'odo', 'prov', 'rel', 'bat'):
+            with self.subTest(i):
+                self.assertIn('id="%s"' % i, h)
+        self.assertIn('function novos', h)
+
+    def test_render_chama_novos(self):
+        # definição + pelo menos uma chamada (em render)
+        self.assertGreaterEqual(self._pagina().count('novos('), 2)
+
+    def test_pagina_usa_o_dia_de_hoje_e_nao_o_do_mockup(self):
+        h = self._pagina()
+        self.assertNotIn('2026-09-29T12:00:00', h)
+        self.assertRegex(h, r'HOJE\s*=\s*new Date\(\)')
+
+    def test_pagina_sem_dados_de_exemplo_do_mockup(self):
+        h = self._pagina()
+        self.assertNotIn('BASE.', h)
+        self.assertNotIn('DOCS=', h)
+
+    def test_widgets_na_coluna_certa(self):
+        h = self._pagina()
+        esq = h.index('id="pontos"')
+        for i in ('dias', 'seq-bar', 'radar'):
+            with self.subTest(i):
+                self.assertGreater(h.index('id="%s"' % i), esq)
+        dir_ = h.index('id="ferr"')
+        for i in ('onda', 'odo', 'prov', 'rel', 'bat'):
+            with self.subTest(i):
+                self.assertGreater(h.index('id="%s"' % i), dir_)
+
+    def test_widgets_tem_elemento_de_estado_vazio(self):
+        h = self._pagina()
+        for i in ('dias-v', 'seq-w-v', 'radar-v', 'rel-v', 'prov-w-v'):
+            with self.subTest(i):
+                self.assertIn('id="%s"' % i, h)
+
     def test_marked_js(self):
         st, _, corpo = self.get('/marked.js')
         self.assertEqual(st, 200)
