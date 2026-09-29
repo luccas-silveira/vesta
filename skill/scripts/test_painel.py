@@ -19,7 +19,7 @@ import unittest
 import urllib.error
 import urllib.parse
 import urllib.request
-from datetime import datetime
+from datetime import datetime, timedelta, timezone
 from unittest import mock
 
 AQUI = os.path.dirname(os.path.abspath(__file__))
@@ -335,7 +335,8 @@ class Sessao(SessaoBase):
             'inicio': '2026-01-01T10:00:00.000Z', 'fim': '2026-01-01T10:01:40.000Z',
             'duracao_s': 100, 'requests': 2, 'entrada': [115, 201], 'saida': 10,
             'ferramentas': [['Read', 3], ['Bash', 1], ['graft_find_code', 1]],
-            'contexto': 201, 'janela': 200000})
+            'contexto': 201, 'janela': 200000,
+            'ritmo': [1] + [0] * 46 + [1]})
 
     def test_mesmo_request_id_conta_uma_request_com_o_ultimo_usage(self):
         self.jsonl('s.jsonl', [
@@ -1530,6 +1531,134 @@ class ServidorPaginaRodada(ServidorBase):
         for i in IDS_RODADA:
             with self.subTest(i):
                 self.assertRegex(h, rf'\bid\s*=\s*["\']?{re.escape(i)}["\'\s>]')
+
+
+def ts_local(dias_atras, hora, minuto=0, segundo=0):
+    """Timestamp UTC ('Z') de um instante em hora local, `dias_atras` dias antes de hoje."""
+    d = datetime.now().replace(hour=hora, minute=minuto, second=segundo, microsecond=0)
+    d = (d - timedelta(days=dias_atras)).astimezone(timezone.utc)
+    return d.strftime('%Y-%m-%dT%H:%M:%S.000Z')
+
+
+def hoje_cedo():
+    return ts_local(0, 0, 0, 1)
+
+
+class Ritmo(SessaoBase):
+    T0 = '2026-01-01T10:00:00.000Z'
+
+    def em(self, s):
+        return f'2026-01-01T10:{s // 60:02d}:{s % 60:02d}.000Z'
+
+    def test_48_trechos_somando_requests(self):
+        self.jsonl('s.jsonl', [{'type': 'user', 'timestamp': self.T0, 'message': {}},
+                               linha_assistant('a', self.em(5)), linha_assistant('b', self.em(15)),
+                               linha_assistant('c', self.em(480))])
+        s = painel.sessao(self.r)
+        self.assertEqual(len(s['ritmo']), 48)
+        self.assertEqual(sum(s['ritmo']), s['requests'])
+        # 480 s / 48 = 10 s por trecho: 5 s -> 0, 15 s -> 1, 480 s (o fim) -> 47
+        self.assertEqual(s['ritmo'][:2] + s['ritmo'][-1:], [1, 1, 1])
+
+    def test_intervalo_vai_do_primeiro_ao_ultimo_timestamp_de_qualquer_linha(self):
+        self.jsonl('s.jsonl', [{'type': 'user', 'timestamp': self.T0, 'message': {}},
+                               linha_assistant('a', self.em(240)),
+                               {'type': 'user', 'timestamp': self.em(480), 'message': {}}])
+        r = painel.sessao(self.r)['ritmo']
+        self.assertEqual(r[24], 1)
+        self.assertEqual(sum(r), 1)
+
+    def test_request_repetido_conta_uma_vez_no_primeiro_timestamp(self):
+        self.jsonl('s.jsonl', [{'type': 'user', 'timestamp': self.T0, 'message': {}},
+                               linha_assistant('a', self.em(5)), linha_assistant('a', self.em(400)),
+                               {'type': 'user', 'timestamp': self.em(480), 'message': {}}])
+        r = painel.sessao(self.r)['ritmo']
+        self.assertEqual((r[0], r[40], sum(r)), (1, 0, 1))
+
+    def test_sessao_de_um_instante_cai_toda_no_trecho_0(self):
+        self.jsonl('s.jsonl', [linha_assistant('a', self.T0), linha_assistant('b', self.T0)])
+        self.assertEqual(painel.sessao(self.r)['ritmo'], [2] + [0] * 47)
+
+
+class Historico(SessaoBase):
+    def hist(self):
+        return painel.historico(self.r)
+
+    def test_sem_sessoes_sao_zeros_sem_erro(self):
+        self.assertEqual(self.hist(), {'dias': [0] * 140, 'horas': [0] * 24})
+        os.makedirs(self.proj)
+        self.assertEqual(self.hist(), {'dias': [0] * 140, 'horas': [0] * 24})
+
+    def test_dias_termina_hoje_e_soma_todas_as_sessoes(self):
+        self.jsonl('a.jsonl', [linha_assistant('a1', hoje_cedo()), linha_assistant('a2', hoje_cedo()),
+                               linha_assistant('a3', ts_local(2, 12))])
+        self.jsonl('b.jsonl', [linha_assistant('b1', hoje_cedo()), linha_assistant('b2', ts_local(139, 12))])
+        d = self.hist()['dias']
+        self.assertEqual(len(d), 140)
+        self.assertEqual((d[-1], d[-3], d[0]), (3, 1, 1))
+        self.assertEqual(sum(d), 5)
+
+    def test_horas_usa_hora_local_de_todas_as_sessoes_e_dias(self):
+        self.jsonl('a.jsonl', [linha_assistant('a1', ts_local(3, 9, 30)), linha_assistant('a2', ts_local(5, 9, 5))])
+        self.jsonl('b.jsonl', [linha_assistant('b1', ts_local(1, 23, 59)), linha_assistant('b2', ts_local(200, 0, 10))])
+        h = self.hist()['horas']
+        self.assertEqual(len(h), 24)
+        self.assertEqual((h[9], h[23], h[0], sum(h)), (2, 1, 1, 4))
+
+    def test_request_repetido_entre_arquivos_conta_uma_vez(self):
+        self.jsonl('a.jsonl', [linha_assistant('x', ts_local(1, 10)), linha_assistant('x', ts_local(1, 10, 0, 1))])
+        self.jsonl('b.jsonl', [linha_assistant('x', ts_local(1, 10))])
+        h = self.hist()
+        self.assertEqual((sum(h['dias']), sum(h['horas']), h['dias'][-2]), (1, 1, 1))
+
+    def test_sessao_do_sdk_nao_conta(self):
+        self.jsonl('a.jsonl', [dict(linha_assistant('x', ts_local(1, 10)), entrypoint='cli')])
+        self.jsonl('b.jsonl', [dict(linha_assistant('y', ts_local(1, 10)), entrypoint='sdk-py')])
+        h = self.hist()
+        self.assertEqual((sum(h['dias']), sum(h['horas'])), (1, 1))
+
+    def test_sem_timestamp_e_nao_json_nao_entram_em_nada(self):
+        sem = linha_assistant('x', None); del sem['timestamp']
+        self.jsonl('a.jsonl', ['{quebrado', sem, linha_assistant('y', ts_local(1, 10))])
+        h = self.hist()
+        self.assertEqual((sum(h['dias']), sum(h['horas'])), (1, 1))
+
+    def test_mais_velha_que_140_dias_so_entra_em_horas(self):
+        self.jsonl('a.jsonl', [linha_assistant('x', ts_local(141, 8)), linha_assistant('y', ts_local(300, 8))])
+        h = self.hist()
+        self.assertEqual(sum(h['dias']), 0)
+        self.assertEqual(h['horas'][8], 2)
+
+    def test_dados_inclui_hist(self):
+        self.jsonl('a.jsonl', [linha_assistant('x', ts_local(1, 10))])
+        self.assertEqual(painel.dados(self.r)['hist'], painel.historico(self.r))
+        self.assertEqual(painel.dados(self.r)['hist']['horas'][10], 1)
+
+
+class CacheDeLeitura(SessaoBase):
+    def abertos(self, caminho, fn):
+        real = open
+        with mock.patch('builtins.open', wraps=real) as m:
+            fn()
+        return [c for c in m.call_args_list if c.args and os.fspath(c.args[0]) == caminho]
+
+    def test_arquivo_igual_nao_e_relido(self):
+        p = self.jsonl('s.jsonl', [linha_assistant('x', ts_local(1, 10), i=4)], 1_000)
+        primeira = painel.dados(self.r)
+        self.assertEqual(self.abertos(p, lambda: painel.dados(self.r)), [])
+        self.assertEqual(painel.dados(self.r)['hist'], primeira['hist'])
+        self.assertEqual(painel.dados(self.r)['sessao'], primeira['sessao'])
+
+    def test_arquivo_que_mudou_e_relido(self):
+        p = self.jsonl('s.jsonl', [linha_assistant('x', ts_local(1, 10), i=4)], 1_000)
+        painel.dados(self.r)
+        self.jsonl('s.jsonl', [linha_assistant('x', ts_local(1, 10), i=4),
+                               linha_assistant('y', ts_local(1, 11), i=6)], 1_000)  # mesmo mtime, outro tamanho
+        self.assertEqual(painel.sessao(self.r)['requests'], 2)
+        self.assertEqual(sum(painel.historico(self.r)['dias']), 2)
+        self.jsonl('s.jsonl', [linha_assistant('x', ts_local(1, 10), i=4),
+                               linha_assistant('z', ts_local(1, 11), i=6)], 2_000)  # mesmo tamanho, outro mtime
+        self.assertTrue(self.abertos(p, lambda: painel.sessao(self.r)))
 
 
 if __name__ == '__main__':
