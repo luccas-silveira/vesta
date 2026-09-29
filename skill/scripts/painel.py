@@ -190,53 +190,86 @@ def rodada(r):
     arqs = [a for a in sorted(arqs, key=os.path.getmtime, reverse=True) if not _do_sdk(a)]
     if not arqs:
         return {'formato': 'sem'}
+    try:
+        e = ler(r)
+    except ValueError:
+        e = None
+    fs = features(r)
+    feat = (feature_do_plano(fs, e['plano']) if e else None) or (fs[0] if fs else None)
+    sessoes = {arqs[0]}
+    if feat and feat['spec']:
+        desde = datetime.strptime(feat['data'], '%Y-%m-%d').timestamp()
+        for a in glob.glob(os.path.join(os.environ['HOME'], '.claude', 'projects', '*', '*.jsonl')):
+            if a in sessoes or os.path.getmtime(a) < desde or _do_sdk(a):
+                continue
+            with open(a) as f:
+                if feat['spec'] in f.read():
+                    sessoes.add(a)
+    por_sessao = {}
+    for a in sessoes:
+        ls = []
+        with open(a) as f:
+            for linha in f:
+                try:
+                    l = json.loads(linha)
+                except ValueError:
+                    continue
+                if isinstance(l, dict):
+                    ls.append(l)
+        primeiro = next((l['timestamp'] for l in ls if l.get('timestamp')), '')
+        por_sessao[os.path.basename(a)[:-6]] = (primeiro, ls)
+    ordem = sorted(por_sessao, key=lambda s: por_sessao[s][0])
+    # a rodada começa na última invocação da sessão mais antiga que tem alguma; as mais novas não reiniciam
+    def invoca(l):
+        return l.get('type') == 'assistant' and any(
+            isinstance(c, dict) and c.get('type') == 'tool_use' and c.get('name') == 'Skill'
+            and isinstance(c.get('input'), dict) and c['input'].get('skill') == 'vesta'
+            for c in ((l.get('message') or {}).get('content') or [] if isinstance(l.get('message'), dict) else []))
+    base = next((s for s in ordem if any(invoca(l) for l in por_sessao[s][1])), None)
+    linhas = sorted(((s, l) for s in ordem for l in por_sessao[s][1]),
+                    key=lambda x: x[1].get('timestamp') or '')
     conhecido, inicio, marcos, hist, ativ, respostas = False, None, {}, [], [], {}
-    with open(arqs[0]) as f:
-        for linha in f:
-            try:
-                l = json.loads(linha)
-            except ValueError:
-                continue
-            msg = l.get('message') if isinstance(l, dict) else None
-            if not isinstance(msg, dict) or not isinstance(msg.get('content'), list):
-                continue
-            conhecido = True
-            res = l.get('toolUseResult')
-            if isinstance(res, dict) and isinstance(res.get('answers'), dict):
-                for c in msg['content']:
-                    if isinstance(c, dict) and c.get('type') == 'tool_result':
-                        respostas[c.get('tool_use_id')] = res['answers']
-            if l.get('type') != 'assistant':
-                continue
-            ts = l.get('timestamp')
+    for s, l in linhas:
+        msg = l.get('message')
+        if not isinstance(msg, dict) or not isinstance(msg.get('content'), list):
+            continue
+        conhecido = True
+        res = l.get('toolUseResult')
+        if isinstance(res, dict) and isinstance(res.get('answers'), dict):
             for c in msg['content']:
-                if not isinstance(c, dict):
-                    continue
-                if c.get('type') == 'text' and inicio:
-                    hist.append({'tipo': 'mensagem', 'texto': c.get('text', ''), 'hora': _hora(ts)})
-                if c.get('type') != 'tool_use':
-                    continue
-                nome, e = c.get('name', ''), c.get('input') or {}
-                if nome == 'Skill' and e.get('skill') == 'vesta':
-                    inicio, marcos, hist, ativ = ts, {}, [], []
-                if not inicio:
-                    continue
-                ativ.append({'ferramenta': re.sub(r'^mcp__.+?__', '', nome),
-                             'alvo': _alvo(nome, e), 'hora': _hora(ts)})
-                alvo = e.get('file_path') if nome == 'Read' else e.get('command') if nome == 'Bash' else None
-                if isinstance(alvo, str):
-                    m = MARCO.search(alvo)
-                    fase = FASE_DO_MARCO.get(m[1], m[1]) if m else (
-                        'execucao' if nome == 'Bash' and re.search(r'vesta\.py (?:criar|iniciar)', alvo) else None)
-                    if fase:
-                        marcos.pop(fase, None)
-                        marcos[fase] = ts
-                if nome == 'AskUserQuestion':
-                    for q in e.get('questions') or []:
-                        hist.append({'id': c.get('id'), 'header': q.get('header'),
-                                     'pergunta': q.get('question'), 'multipla': bool(q.get('multiSelect')),
-                                     'rotulos': [o.get('label') for o in q.get('options') or []],
-                                     'hora': _hora(ts)})
+                if isinstance(c, dict) and c.get('type') == 'tool_result':
+                    respostas[c.get('tool_use_id')] = res['answers']
+        if l.get('type') != 'assistant':
+            continue
+        ts = l.get('timestamp')
+        for c in msg['content']:
+            if not isinstance(c, dict):
+                continue
+            if c.get('type') == 'text' and inicio:
+                hist.append({'tipo': 'mensagem', 'texto': c.get('text', ''), 'hora': _hora(ts)})
+            if c.get('type') != 'tool_use':
+                continue
+            nome, e = c.get('name', ''), c.get('input') or {}
+            if nome == 'Skill' and e.get('skill') == 'vesta' and s == base:
+                inicio, marcos, hist, ativ = ts, {}, [], []
+            if not inicio:
+                continue
+            ativ.append({'ferramenta': re.sub(r'^mcp__.+?__', '', nome),
+                         'alvo': _alvo(nome, e), 'hora': _hora(ts)})
+            alvo = e.get('file_path') if nome == 'Read' else e.get('command') if nome == 'Bash' else None
+            if isinstance(alvo, str):
+                m = MARCO.search(alvo)
+                fase = FASE_DO_MARCO.get(m[1], m[1]) if m else (
+                    'execucao' if nome == 'Bash' and re.search(r'vesta\.py (?:criar|iniciar)', alvo) else None)
+                if fase:
+                    marcos.pop(fase, None)
+                    marcos[fase] = ts
+            if nome == 'AskUserQuestion':
+                for q in e.get('questions') or []:
+                    hist.append({'id': c.get('id'), 'header': q.get('header'),
+                                 'pergunta': q.get('question'), 'multipla': bool(q.get('multiSelect')),
+                                 'rotulos': [o.get('label') for o in q.get('options') or []],
+                                 'hora': _hora(ts)})
     if not conhecido:
         return {'formato': 'desconhecido'}
     if not inicio:
@@ -261,7 +294,7 @@ def rodada(r):
         estado = ('atual' if i == atual else 'pendente' if i > atual
                   else 'feita' if i == 0 or fase in marcos else 'pulada')
         fases.append({'id': fase, 'estado': estado, 'hora': hora})
-    return {'formato': 'claude-code', 'sessoes': [os.path.basename(arqs[0])[:-6]],
+    return {'formato': 'claude-code', 'sessoes': ordem,
             'inicio': _hora(inicio), 'fases': fases, 'historico': hist,
             'atividade': ativ[::-1][:200], 'n_atividade': len(ativ)}
 
