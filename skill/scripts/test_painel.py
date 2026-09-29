@@ -9,6 +9,7 @@ Formatos escolhidos aqui (o plano deixou em aberto):
 import json
 import os
 import re
+import shutil
 import subprocess
 import sys
 import socket
@@ -1700,6 +1701,199 @@ class CacheDeLeitura(SessaoBase):
         self.jsonl('s.jsonl', [linha_assistant('x', ts_local(1, 10), i=4),
                                linha_assistant('z', ts_local(1, 11), i=6)], 2_000)  # mesmo tamanho, outro mtime
         self.assertTrue(self.abertos(p, lambda: painel.sessao(self.r)))
+
+# Faixa única, etapa 1 — as fases da Rodada abrem os documentos; a faixa da Trilha sai.
+class PaginaFaixaUnica(unittest.TestCase):
+    def setUp(self):
+        with open(os.path.join(AQUI, 'painel.html'), encoding='utf-8') as f:
+            self.h = f.read()
+
+    def test_sem_a_faixa_da_trilha(self):
+        self.assertNotRegex(self.h, r'class\s*=\s*["\']?[^"\'>]*\btrilha\b', 'o HTML ainda tem class="trilha"')
+        self.assertNotRegex(self.h, r'\.trilha\b', 'o CSS ou o JS ainda cita .trilha')
+        self.assertNotRegex(self.h, r'function\s+trilha\s*\(|\btrilha\s*=\s*(\([^)]*\)|\w+)\s*=>',
+                            'a função trilha() ainda existe')
+
+    def test_bloco_do_leitor_se_chama_documento(self):
+        m = re.search(r'<div class="bloco"[^>]*>((?:(?!<div class="bloco").)*?id="leitor")', self.h, re.S)
+        self.assertIsNotNone(m, 'id="leitor" não está num bloco')
+        bloco = m[1]
+        self.assertRegex(bloco, r'<h3>\s*Documento\s*</h3>')
+        self.assertNotRegex(bloco, r'<h3>\s*Trilha\s*</h3>')
+        self.assertRegex(bloco, r'\bid="trilha-cab"')
+
+    def test_css_dos_botoes_das_fases(self):
+        for sel in (r'\.fases button:hover', r'\.fases button:focus-visible',
+                    r'\.fases button\[aria-pressed=["\']?true["\']?\]'):
+            with self.subTest(sel):
+                self.assertRegex(self.h, sel + r'[^{]*\{')
+
+
+# Roda o JS do painel no node com um DOM de mentira e chama rodada(); devolve o que a faixa mostra.
+HARNESS = r"""
+const fs=require('fs'),vm=require('vm');
+const [html,cenario]=[fs.readFileSync(process.argv[1],'utf8'),JSON.parse(process.argv[2])];
+const script=[...html.matchAll(/<script>([\s\S]*?)<\/script>/g)].map(m=>m[1]).join('\n');
+class El{
+  constructor(tag){this.tag=tag;this.attrs={};this.children=[];this._html='';this.textContent='';this.hidden=false;
+    this.className='';this.style={};this.dataset={};this.onclick=null;this.clicks=[];this._first=null;this.value=''}
+  set innerHTML(v){this._html=String(v);this.children=[];this._first=null}
+  get innerHTML(){return this._html}
+  get firstChild(){return this.children[0]||(this._first=this._first||new El('?'))}
+  get firstElementChild(){return this.firstChild}
+  append(...c){this.children.push(...c)}
+  appendChild(c){this.children.push(c);return c}
+  setAttribute(k,v){this.attrs[k]=String(v)}
+  getAttribute(k){return k in this.attrs?this.attrs[k]:null}
+  removeAttribute(k){delete this.attrs[k]}
+  addEventListener(t,f){if(t==='click')this.clicks.push(f)}
+  querySelector(){return this.firstChild}
+  querySelectorAll(){return []}
+  get classList(){return{add(){},remove(){},toggle(){},contains(){return false}}}
+  closest(){return new El('div')}
+  after(){} before(){} scrollIntoView(){} getBoundingClientRect(){return{}}
+  get outer(){const a=Object.entries(this.attrs).map(([k,v])=>` ${k}="${v}"`).join('');
+    const d=Object.entries(this.dataset).map(([k,v])=>` data-${k}="${v}"`).join('');
+    return `<${this.tag}${a}${d}>${this._html}${this.children.map(c=>c.outer).join('')}${this.textContent}</${this.tag}>`}
+}
+const ids={};
+const document={getElementById:id=>ids[id]||(ids[id]=new El('div')),createElement:t=>new El(t),createElementNS:(n,t)=>new El(t),
+  querySelector:()=>new El('div'),querySelectorAll:()=>[],body:new El('body'),title:'',addEventListener(){}};
+const nada=()=>0;
+const ctx={document,fetch:()=>new Promise(()=>{}),setInterval:nada,setTimeout:nada,clearInterval:nada,clearTimeout:nada,
+  requestAnimationFrame:nada,marked:{parse:s=>s},console,localStorage:{getItem:()=>null,setItem(){}},
+  matchMedia:()=>({matches:false,addEventListener(){}}),getComputedStyle:()=>({getPropertyValue:()=>''}),
+  navigator:{},location:{href:''},open(){}};
+ctx.window=ctx;vm.createContext(ctx);
+vm.runInContext(script,ctx);
+vm.runInContext(`D=${JSON.stringify(cenario.D)};escolhida=${JSON.stringify(cenario.escolhida)};aberto=${JSON.stringify(cenario.aberto)};rodada(D.rodada)`,ctx);
+const $=id=>document.getElementById(id);
+const lis=$('fases').children;
+const out={cab:$('rodada-cab').textContent,aviso_oculto:$('rodada-aviso').hidden,cols_ocultas:$('rodada-cols').hidden,
+  fases:lis.map(li=>({classe:li.className||li.attrs.class||'',html:li.outer}))};
+if(cenario.clicar){
+  const li=lis.find(l=>l.outer.includes(`data-doc="${cenario.clicar}"`));
+  if(li){const b=li.children[0]||li._first;const fs=[b&&b.onclick,...(b?b.clicks:[]),li.onclick,...li.clicks].filter(Boolean);
+    const ev={target:b,currentTarget:b,preventDefault(){},stopPropagation(){}};
+    for(const f of fs){try{f(ev)}catch(e){}}}
+  out.doc_cab=$('trilha-cab').textContent;
+}
+process.stdout.write(JSON.stringify(out));
+"""
+
+FEAT_ATUAL = {'topico': 'faixa-unica', 'data': '2026-09-29',
+              'spec': 'docs/vesta/specs/2026-09-29-faixa-unica-design.md',
+              'research': 'docs/vesta/research/2026-09-29-faixa-unica-research.md',
+              'plano': None, 'mockup': None, 'grill': False}
+FEAT_VELHA = {'topico': 'acesso-ao-painel', 'data': '2026-09-20',
+              'spec': 'docs/vesta/specs/2026-09-20-acesso-ao-painel-design.md',
+              'research': None, 'plano': 'docs/vesta/plans/2026-09-20-acesso-ao-painel.md',
+              'mockup': 'docs/vesta/mockups/2026-09-20-acesso-ao-painel', 'grill': True}
+RODADA_VIVA = {'formato': 'claude-code', 'sessoes': ['s1'], 'inicio': '09:00',
+               'fases': [{'id': 'ativacao', 'estado': 'feita', 'hora': '09:00'},
+                         {'id': 'spec', 'estado': 'feita', 'hora': '09:05'},
+                         {'id': 'pesquisa', 'estado': 'feita', 'hora': '09:10'},
+                         {'id': 'grill', 'estado': 'atual', 'hora': '09:20'},
+                         {'id': 'mockup', 'estado': 'pendente', 'hora': None},
+                         {'id': 'plano', 'estado': 'pendente', 'hora': None},
+                         {'id': 'execucao', 'estado': 'pendente', 'hora': None},
+                         {'id': 'concluida', 'estado': 'pendente', 'hora': None}],
+               'historico': [], 'atividade': [], 'n_atividade': 0}
+
+
+@unittest.skipUnless(shutil.which('node'), 'node ausente')
+class FaixaUnicaNoNavegador(unittest.TestCase):
+    ORDEM = ['ativacao', 'spec', 'pesquisa', 'grill', 'mockup', 'plano', 'execucao', 'concluida']
+
+    def rodar(self, escolhida=None, aberto=None, clicar=None, atual=FEAT_ATUAL):
+        D = {'atual': atual, 'features': [FEAT_ATUAL, FEAT_VELHA], 'rodada': RODADA_VIVA}
+        cen = {'D': D, 'escolhida': escolhida, 'aberto': aberto, 'clicar': clicar}
+        p = subprocess.run(['node', '-e', HARNESS, os.path.join(AQUI, 'painel.html'), json.dumps(cen)],
+                           capture_output=True, text=True, timeout=30)
+        self.assertEqual(p.returncode, 0, p.stderr)
+        out = json.loads(p.stdout)
+        self.assertEqual(len(out['fases']), 8)
+        out['por_fase'] = dict(zip(self.ORDEM, out['fases']))
+        return out
+
+    def botao(self, li):
+        m = re.search(r'<button\b[^>]*>', li['html'])
+        return m and m[0]
+
+    def test_fases_com_documento_viram_botoes_com_data_doc(self):
+        f = self.rodar()['por_fase']
+        for fase, doc in (('spec', 'spec'), ('pesquisa', 'research')):
+            with self.subTest(fase):
+                b = self.botao(f[fase])
+                self.assertIsNotNone(b, f'{fase} tem documento e não virou botão')
+                self.assertIn(f'data-doc="{doc}"', b)
+                self.assertRegex(b, r'type="button"')
+
+    def test_fases_sem_documento_nao_tem_botao(self):
+        f = self.rodar()['por_fase']
+        # grill sem a linha na spec, sem mockup, sem plano; ativação/execução/concluída nunca têm.
+        for fase in ('ativacao', 'grill', 'mockup', 'plano', 'execucao', 'concluida'):
+            with self.subTest(fase):
+                self.assertIsNone(self.botao(f[fase]))
+
+    def test_grill_abre_o_documento_grill_quando_a_spec_tem_grill(self):
+        atual = dict(FEAT_ATUAL, grill=True, plano='docs/vesta/plans/p.md', mockup='docs/vesta/mockups/m')
+        f = self.rodar(atual=atual)['por_fase']
+        for fase, doc in (('grill', 'grill'), ('plano', 'plano'), ('mockup', 'mockup')):
+            with self.subTest(fase):
+                b = self.botao(f[fase])
+                self.assertIsNotNone(b)
+                self.assertIn(f'data-doc="{doc}"', b)
+
+    def test_aria_pressed_so_no_documento_aberto(self):
+        f = self.rodar(aberto='research')['por_fase']
+        self.assertIsNotNone(self.botao(f['pesquisa']), 'pesquisa não virou botão')
+        self.assertIsNotNone(self.botao(f['spec']), 'spec não virou botão')
+        self.assertRegex(self.botao(f['pesquisa']), r'aria-pressed="true"')
+        self.assertRegex(self.botao(f['spec']), r'aria-pressed="false"')
+
+    def test_clicar_na_fase_abre_o_documento(self):
+        out = self.rodar(clicar='spec')
+        self.assertEqual(out.get('doc_cab'), 'Spec // faixa unica')
+
+    def test_clicar_na_pesquisa_mostra_o_nome_da_fase(self):
+        out = self.rodar(clicar='research')
+        self.assertEqual(out.get('doc_cab'), 'Pesquisa // faixa unica')
+
+    def test_feature_atual_segue_com_horario_e_agora(self):
+        f = self.rodar()['por_fase']
+        self.assertIn('09:05', f['spec']['html'])
+        self.assertNotIn('>ler<', f['spec']['html'])
+        self.assertIn('agora', f['grill']['html'])
+
+    def test_feature_antiga_mostra_as_fases_dela_com_ler(self):
+        out = self.rodar(escolhida='acesso-ao-painel')
+        f = out['por_fase']
+        for fase, doc in (('spec', 'spec'), ('grill', 'grill'), ('mockup', 'mockup'), ('plano', 'plano')):
+            with self.subTest(fase):
+                self.assertIn('feita', f[fase]['classe'].split())
+                b = self.botao(f[fase])
+                self.assertIsNotNone(b)
+                self.assertIn(f'data-doc="{doc}"', b)
+                self.assertRegex(f[fase]['html'], r'>\s*ler\s*<')
+        with self.subTest('pesquisa sem documento'):
+            self.assertIn('pendente', f['pesquisa']['classe'].split())
+            self.assertIsNone(self.botao(f['pesquisa']))
+        for fase in self.ORDEM:
+            with self.subTest(fase, horario=True):
+                self.assertNotIn('agora', f[fase]['html'])
+                self.assertNotRegex(f[fase]['html'], r'\d\d:\d\d')
+
+    def test_feature_antiga_cabecalho_e_sem_historico(self):
+        out = self.rodar(escolhida='acesso-ao-painel')
+        self.assertEqual(out['cab'], 'acesso ao painel // 2026-09-20')
+        self.assertTrue(out['aviso_oculto'])
+        self.assertTrue(out['cols_ocultas'])
+
+    def test_escolher_a_propria_feature_atual_nao_e_antiga(self):
+        out = self.rodar(escolhida='faixa-unica')
+        self.assertEqual(out['cab'], '1 sessão // desde 09:00')
+        self.assertFalse(out['cols_ocultas'])
 
 
 if __name__ == '__main__':
