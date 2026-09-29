@@ -2180,6 +2180,131 @@ class MovimentoNoNavegador(unittest.TestCase):
         self.assertEqual(self.misturar("mistura('req 009','req 012',0.4,true)"), ['req 010'])
 
 
+# Etapa 3 das animações — listas, células e rótulos reaproveitados.
+def _vistos(id_):
+    """Expressão JS: para cada filho direto de #id, se é o mesmo objeto de uma leitura anterior."""
+    return f"[...document.getElementById('{id_}').children].map(c=>!!c._visto)"
+
+
+def _txt(id_):
+    return f"String(document.getElementById('{id_}').textContent)"
+
+
+def _classes(outer):
+    return (_attr('class', outer) or '').split()
+
+
+@unittest.skipUnless(shutil.which('node'), 'node ausente')
+class ListasNoNavegador(unittest.TestCase):
+    """Usa o mesmo HARNESS e a mesma interface de MovimentoNoNavegador (modo 'render' com 'passos',
+    'mesmos', 'avaliado'). O "mesmo objeto" de um filho em particular é lido por 'avaliar' com
+    `c._visto`, a marca que o HARNESS põe nos descendentes antes de cada passo depois do primeiro.
+    O clique na fase chama `li.children[0].onclick()` por 'avaliar' e lê `#trilha-cab`, que abrir()
+    escreve antes do fetch (o fetch da simulação nunca resolve).
+    """
+    LISTAS = ['etapas', 'fases', 'hist', 'ativ', 'features', 'seq-bar', 'prov']
+    rodar = MovimentoNoNavegador.rodar
+    D = MovimentoNoNavegador.D
+
+    def test_mesmos_dados_mantem_cada_item_e_celula_como_o_mesmo_objeto(self):
+        p1, p2 = self.rodar([self.D(), self.D()], ids=self.LISTAS)['passos']
+        for g in self.LISTAS:
+            with self.subTest(g):
+                self.assertGreater(p1[g]['n'], 0, f'#{g} sem filhos no DOM (ainda montado por innerHTML?)')
+                self.assertEqual(p2[g]['n'], p1[g]['n'], f'#{g}: a contagem mudou com os mesmos dados')
+                self.assertEqual(p2[g]['mesmos'], p2[g]['n'],
+                                 f'#{g}: {p2[g]["n"] - p2[g]["mesmos"]} filhos recriados na segunda leitura')
+                for f in p2[g]['filhos']:
+                    self.assertNotRegex(f, r'\s(data-)?k="', f'#{g}: a chave virou atributo')
+
+    def test_atividade_nova_no_topo_entra_primeiro_e_mantem_as_antigas(self):
+        d2 = self.D()
+        r = d2['rodada']
+        antigas = [x['alvo'] for x in r['atividade']]
+        r['atividade'] = [{'hora': '09:26', 'ferramenta': 'Edit', 'alvo': 'test_painel.py'}] + r['atividade']
+        r['n_atividade'] += 1
+        out = self.rodar([self.D(), d2], ids=['ativ'], avaliar=[_vistos('ativ'), _txt('ativ-cab')])
+        p1, p2 = self.passos_de(out, 'ativ')
+        self.assertEqual(p2['n'], p1['n'] + 1, 'a contagem de itens não subiu 1')
+        self.assertEqual(p2['mesmos'], p1['n'], 'itens antigos de #ativ foram recriados')
+        vistos, cab = out['avaliado']
+        self.assertEqual(vistos, [False] + [True] * p1['n'], 'o item novo não é o primeiro, ou os antigos mudaram de objeto')
+        self.assertIn('test_painel.py', p2['filhos'][0])
+        for li, alvo in zip(p2['filhos'][1:], antigas):
+            with self.subTest(alvo):
+                self.assertIn(alvo, li, 'um item antigo passou a mostrar outra atividade')
+        self.assertEqual(cab, '4 de 8')
+
+    def passos_de(self, out, g):
+        return [x[g] for x in out['passos']]
+
+    def fases_andando(self):
+        d2 = self.D()
+        fs = d2['rodada']['fases']
+        fs[3].update(estado='feita')               # grill: era a atual
+        fs[4].update(estado='atual', hora='09:30')  # mockup: vira a atual
+        return d2
+
+    def test_fase_que_passa_a_feita_perde_aria_current_e_a_seguinte_ganha(self):
+        out = self.rodar([self.D(), self.fases_andando()], ids=['fases'], avaliar=[_vistos('fases')])
+        p1, p2 = self.passos_de(out, 'fases')
+        self.assertEqual(_attr('aria-current', p1['filhos'][3]), 'step')
+        self.assertEqual(out['avaliado'][0], [True] * 8, 'o li de alguma fase foi recriado')
+        grill, mockup = p2['filhos'][3], p2['filhos'][4]
+        self.assertIsNone(_attr('aria-current', grill), 'a fase que deixou de ser atual segue com aria-current')
+        self.assertIn('feita', _classes(grill))
+        self.assertEqual(_attr('aria-current', mockup), 'step')
+        self.assertIn('atual', _classes(mockup))
+        self.assertEqual(sum(_attr('aria-current', f) is not None for f in p2['filhos']), 1)
+
+    def test_clique_na_fase_reaproveitada_abre_o_documento(self):
+        clique = ("(()=>{const b=(document.getElementById('fases').children[2]||{children:[]}).children[0];"
+                  "if(!b||typeof b.onclick!=='function')return 'sem onclick no botão';b.onclick();"
+                  "return String(document.getElementById('trilha-cab').textContent)})()")
+        out = self.rodar([self.D(), self.D()], ids=['fases'], avaliar=[_vistos('fases'), clique])
+        vistos, cab = out['avaliado']
+        self.assertTrue(vistos and vistos[2], 'o li da Pesquisa foi recriado na segunda leitura')
+        self.assertEqual(cab, 'Pesquisa // faixa unica')
+
+    def test_etapa_pendente_que_vira_feita_segue_o_mesmo_li_com_selo_verde(self):
+        d2 = self.D()
+        e = d2['estado']['etapas'][1]
+        e['status'] = 'feita'
+        e['provas']['teste'].update(resultado='verde', commit='beef1234cafe')
+        out = self.rodar([self.D(), d2], ids=['etapas'], avaliar=[_vistos('etapas')])
+        p1, p2 = self.passos_de(out, 'etapas')
+        self.assertNotIn('feita', _classes(p1['filhos'][1]))
+        self.assertTrue(out['avaliado'][0][1], 'o li da etapa 02 foi recriado')
+        li = p2['filhos'][1]
+        self.assertIn('feita', _classes(li))
+        self.assertRegex(li, r'<span class="chip[^"]*">verde</span>', 'o selo da etapa feita não diz verde')
+        self.assertIn('beef123', li)
+        self.assertNotIn('implementando', li)
+
+    def test_pergunta_pendente_respondida_segue_o_mesmo_li_sem_pend(self):
+        d2 = self.D()
+        d2['rodada']['historico'][2]['resposta'] = 'Meio segundo'
+        out = self.rodar([self.D(), d2], ids=['hist'], avaliar=[_vistos('hist')])
+        p1, p2 = self.passos_de(out, 'hist')
+        self.assertIn('pend', _classes(p1['filhos'][2]))
+        self.assertTrue(out['avaliado'][0][2], 'o li da pergunta respondida foi recriado')
+        li = p2['filhos'][2]
+        self.assertNotIn('pend', _classes(li), 'a pergunta respondida segue com a classe pend')
+        self.assertIn('Meio segundo', li)
+        self.assertNotIn('esperando resposta', li)
+
+    def test_mudanca_de_estado_troca_palavra_percentual_e_requests(self):
+        d2 = self.D()
+        d2['momento'] = {'tipo': 'pausada', 'texto': 'Pausada na etapa 3 de 4'}
+        e = d2['estado']['etapas'][1]
+        e['status'] = 'feita'
+        e['provas']['teste'].update(resultado='verde', commit='beef1234cafe')
+        d2['sessao']['entrada'] = ENTRADA + [60_000]
+        d2['sessao']['requests'] += 1
+        out = self.rodar([self.D(), d2], ids=['etapas'], avaliar=[_txt('palavra'), _txt('pct'), _txt('n-req')])
+        self.assertEqual(out['avaliado'], ['Pausada', '50', '023 req'])
+
+
 class MovimentoNaPagina(unittest.TestCase):
     def setUp(self):
         with open(os.path.join(AQUI, 'painel.html'), encoding='utf-8') as f:
