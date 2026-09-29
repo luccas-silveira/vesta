@@ -84,6 +84,20 @@ do vazio e volta a ter dados remonta pela mesma regra, só ele.
 Estado: `--acento` registrado com `@property` como cor, com transição no `body`. A palavra
 grande (`#palavra`) faz troca cruzada quando o texto muda.
 
+## Ritmo e realce (questionário do mockup)
+
+- Intensidade de movimento 5 de 10: uma entrada orquestrada na abertura mais transições de
+  estado, sem movimento decorativo contínuo. O padrão de tela de operação é 3, que proíbe a
+  abertura pedida.
+- Mudança de dado em 220 ms. Elemento novo entra em 420 ms e sai em 280 ms. A abertura inteira
+  leva até cerca de 900 ms: os gráficos entram defasados por até 250 ms e os itens se escalonam
+  por até 200 ms. Curva de entrada `cubic-bezier(0.16,1,0.3,1)`, de saída
+  `cubic-bezier(0.7,0,0.84,0)`, e de troca de estado `cubic-bezier(0.65,0,0.35,1)`.
+- Lampejo: o rótulo cujo valor mudou acende na cor de destaque e volta em 500 ms. A linha da
+  etapa ou da fase que mudou de estado acende o fundo pelo mesmo tempo.
+- Entrada, saída, troca e lampejo usam a Web Animations API e não tocam atributo nenhum. Só a
+  geometria passa pelo laço de quadros.
+
 ## Por gráfico
 
 - Contexto (`arco`): anima o percentual, não o texto do caminho. A cada quadro o arco,
