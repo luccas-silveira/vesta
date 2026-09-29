@@ -69,6 +69,8 @@ esperando aprovação: a trava ainda não age.
 
 ## Parada 1
 
+Antes da mensagem, a checagem de versão de `SKILL.md` ("As mensagens das paradas").
+
 Mensagem ao usuário, cinco linhas: o que o plano vai fazer, quantas etapas, o que trava, o
 que decidir agora, o caminho do plano. Não repita o que está nos arquivos.
 

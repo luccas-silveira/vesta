@@ -87,6 +87,12 @@ próxima sessão do projeto. `/vesta-retomar` passa a execução para a sessão 
 
 ## As mensagens das paradas
 
+Antes da mensagem de qualquer parada (a do mockup, a 1 e a 2), rode
+`python3 ~/.claude/skills/vesta/scripts/vesta.py atualizar`. Saída vazia: siga normal. Com
+saída, a mensagem da parada abre com ela, em palavras do usuário: se a Vesta foi atualizada, ele
+precisa reiniciar a sessão para a versão nova valer, e com execução no meio `/vesta-retomar`
+continua de onde parou. A decisão da parada segue igual.
+
 Cinco linhas cada. Parada 1: o que o plano vai fazer, o que trava, o que decidir agora.
 Parada 2: o que ficou pronto, o que travou, como testar.
 

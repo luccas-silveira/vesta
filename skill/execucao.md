@@ -95,6 +95,8 @@ Responda com o status (DONE ou BLOCKED) e os arquivos mudados.
 
 ## Parada 2
 
+Antes da mensagem, a checagem de versão de `SKILL.md` ("As mensagens das paradas").
+
 Depois de concluir a última etapa, ou quando uma travar, escreva ao usuário em cinco linhas: o
 que ficou pronto, o que travou e por quê (a linha decisiva da última saída), como testar a
 feature.

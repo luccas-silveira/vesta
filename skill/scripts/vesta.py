@@ -661,10 +661,44 @@ def hook_ativacao(entrada):
     return None
 
 
+def atualizar(repo):
+    """Avança o clone da Vesta até o remoto e roda o install.sh. None: nada a dizer (em dia,
+    sem repositório, sem rede); texto: o que o agente repassa na parada."""
+    if not repo or git(repo, 'rev-parse', '--abbrev-ref', '@{u}') is None:
+        return None
+    try:
+        p = subprocess.run(['git', 'fetch', '-q'], cwd=repo, capture_output=True, timeout=15,
+                           env={**os.environ, 'GIT_TERMINAL_PROMPT': '0'})
+    except (OSError, subprocess.TimeoutExpired):
+        return None
+    if p.returncode or git(repo, 'rev-list', '--count', 'HEAD..@{u}') in (None, '0'):
+        return None
+    nao = f'vesta: há versão nova no repositório, mas não atualizei: o clone em {repo} '
+    if git(repo, 'status', '--porcelain', '--untracked-files=no'):
+        return nao + 'tem mudanças locais.'
+    if git(repo, 'rev-list', '--count', '@{u}..HEAD') != '0':
+        return nao + 'tem commits que o remoto não tem.'
+    if git(repo, 'merge', '--ff-only', '-q', '@{u}') is None:
+        return nao + 'não avançou (git merge --ff-only falhou).'
+    novo = git(repo, 'rev-parse', '--short', 'HEAD')
+    instalar = os.path.join(repo, 'install.sh')
+    if os.path.exists(instalar):
+        p = subprocess.run([instalar], cwd=repo, capture_output=True, text=True)
+        if p.returncode:
+            return (f'vesta: atualizada para {novo}, mas o install.sh falhou: '
+                    f'{cauda(p.stderr or p.stdout, 3).strip()}')
+    return f'vesta: atualizada para {novo}. Reinicie a sessão do Claude Code para a nova versão valer.'
+
+
+def cmd_atualizar(r, args):
+    return atualizar(git(os.path.dirname(os.path.realpath(__file__)), 'rev-parse', '--show-toplevel'))
+
+
 COMANDOS = {'criar': cmd_criar, 'iniciar': cmd_iniciar, 'mostrar': cmd_mostrar,
             'prova': cmd_prova, 'concluir': cmd_concluir, 'retomar': cmd_retomar,
             'pausar': cmd_pausar, 'adicionar': cmd_adicionar, 'fechar': cmd_fechar,
-            'guarda': cmd_guarda, 'painel': cmd_painel, 'aberto': cmd_aberto}
+            'guarda': cmd_guarda, 'painel': cmd_painel, 'aberto': cmd_aberto,
+            'atualizar': cmd_atualizar}
 HOOKS = {'hook-parada': hook_parada, 'hook-inicio': hook_inicio, 'hook-adocao': hook_adocao,
          'hook-menu': hook_menu, 'hook-ativacao': hook_ativacao}
 

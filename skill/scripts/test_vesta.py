@@ -1229,5 +1229,97 @@ class Ativacao(ComPainel):
             self.ativar(entrada=entrada)
 
 
+class Atualizar(unittest.TestCase):
+    """O vesta.py copiado para dentro de um clone descartável acha o próprio repositório."""
+
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        t = os.path.realpath(self.tmp.name)
+        self.remoto, self.semente, self.clone = (os.path.join(t, n) for n in ('r.git', 's', 'c'))
+        subprocess.run(['git', 'init', '-q', '--bare', '-b', 'main', self.remoto], check=True)
+        subprocess.run(['git', 'clone', '-q', self.remoto, self.semente], check=True,
+                       capture_output=True)
+        self.git(self.semente, 'checkout', '-q', '-b', 'main')
+        os.makedirs(os.path.join(self.semente, 'skill', 'scripts'))
+        with open(SCRIPT) as f, open(os.path.join(self.semente, 'skill/scripts/vesta.py'), 'w') as g:
+            g.write(f.read())
+        instalar = os.path.join(self.semente, 'install.sh')
+        with open(instalar, 'w') as f:
+            f.write('#!/bin/sh\ntouch "$(dirname "$0")/instalou"\n')
+        os.chmod(instalar, 0o755)
+        with open(os.path.join(self.semente, '.gitignore'), 'w') as f:
+            f.write('instalou\n__pycache__/\n')
+        self.commit(self.semente, 'raiz')
+        self.git(self.semente, 'push', '-q', '-u', 'origin', 'main')
+        subprocess.run(['git', 'clone', '-q', self.remoto, self.clone], check=True)
+        for d in (self.semente, self.clone):
+            self.git(d, 'config', 'user.email', 't@t')
+            self.git(d, 'config', 'user.name', 't')
+
+    def tearDown(self):
+        self.tmp.cleanup()
+
+    def git(self, pasta, *args):
+        return subprocess.run(['git', *args], cwd=pasta, capture_output=True, text=True,
+                              check=True).stdout.strip()
+
+    def commit(self, pasta, msg, arquivo=None):
+        if arquivo:
+            with open(os.path.join(pasta, arquivo), 'w') as f:
+                f.write(msg)
+        subprocess.run(['git', '-c', 'user.email=t@t', '-c', 'user.name=t', 'add', '-A'],
+                       cwd=pasta, check=True)
+        subprocess.run(['git', '-c', 'user.email=t@t', '-c', 'user.name=t', 'commit', '-q',
+                        '-m', msg], cwd=pasta, check=True)
+
+    def remoto_avanca(self):
+        self.commit(self.semente, 'nova', 'novo.txt')
+        self.git(self.semente, 'push', '-q')
+
+    def atualizar(self, pasta=None):
+        p = subprocess.run(['python3', os.path.join(pasta or self.clone, 'skill/scripts/vesta.py'),
+                            'atualizar'], cwd=self.tmp.name, env=ENV, capture_output=True, text=True)
+        self.assertEqual(p.returncode, 0, p.stderr)
+        return p.stdout
+
+    def test_em_dia_sai_mudo(self):
+        self.assertEqual(self.atualizar(), '')
+        self.assertFalse(os.path.exists(os.path.join(self.clone, 'instalou')))
+
+    def test_remoto_a_frente_atualiza_instala_e_pede_reinicio(self):
+        self.remoto_avanca()
+        saida = self.atualizar()
+        self.assertIn('atualizada', saida)
+        self.assertIn('Reinicie a sessão', saida)
+        self.assertTrue(os.path.exists(os.path.join(self.clone, 'novo.txt')))
+        self.assertTrue(os.path.exists(os.path.join(self.clone, 'instalou')))
+
+    def test_clone_sujo_nao_atualiza_e_diz(self):
+        self.remoto_avanca()
+        with open(os.path.join(self.clone, 'install.sh'), 'a') as f:
+            f.write('# mexido\n')
+        antes = self.git(self.clone, 'rev-parse', 'HEAD')
+        self.assertIn('não atualizei', self.atualizar())
+        self.assertEqual(self.git(self.clone, 'rev-parse', 'HEAD'), antes)
+
+    def test_clone_com_commit_proprio_nao_atualiza_e_diz(self):
+        self.remoto_avanca()
+        self.commit(self.clone, 'local', 'local.txt')
+        antes = self.git(self.clone, 'rev-parse', 'HEAD')
+        self.assertIn('não atualizei', self.atualizar())
+        self.assertEqual(self.git(self.clone, 'rev-parse', 'HEAD'), antes)
+
+    def test_fora_de_repositorio_sai_mudo(self):
+        solta = os.path.join(self.tmp.name, 'solta')
+        os.makedirs(os.path.join(solta, 'skill', 'scripts'))
+        with open(SCRIPT) as f, open(os.path.join(solta, 'skill/scripts/vesta.py'), 'w') as g:
+            g.write(f.read())
+        self.assertEqual(self.atualizar(solta), '')
+
+    def test_fetch_falhando_sai_mudo(self):
+        self.git(self.clone, 'remote', 'set-url', 'origin', os.path.join(self.tmp.name, 'sumiu'))
+        self.assertEqual(self.atualizar(), '')
+
+
 if __name__ == '__main__':
     unittest.main()

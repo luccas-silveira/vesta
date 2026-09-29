@@ -24,6 +24,9 @@ Cada projeto guarda o estado da execução em `.claude/vesta/estado.json`. A pas
 - `fechar`: apaga o estado.
 - `painel`: sobe o painel do projeto, abre no navegador e imprime a url (`/vesta-painel`).
 - `aberto`: `aberto <cwd>` sai 0 quando a página do painel da raiz de `<cwd>` está aberta (pediu `/estado` nos últimos 10 s), 1 no resto; não imprime nada.
+- `atualizar`: roda antes da mensagem de cada parada. Se o remoto do repositório da Vesta tem
+  versão nova, avança o clone, roda o `install.sh` e pede para reiniciar a sessão; com mudanças
+  locais ou commits que o remoto não tem, não mexe e diz por quê. Em dia ou sem rede, não imprime nada.
 - `guarda`: imprime o trecho de shell que embrulha o hook Stop de outra ferramenta.
 - `silenciar`: usado por esse trecho; sai 0 só quando a parada atual vai ser bloqueada pela Vesta.
 

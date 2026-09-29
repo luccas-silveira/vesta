@@ -79,6 +79,8 @@ Commite o mockup e abra: `open docs/vesta/mockups/<pasta>/index.html`.
 
 ## Parada do mockup
 
+Antes da mensagem, a checagem de versão de `SKILL.md` ("As mensagens das paradas").
+
 Cinco linhas: o que o mockup mostra, a escolha de design que mais pesa, a diferença entre as
 duas direções, o que a autoverificação corrigiu, o caminho da página (e a rota, no React).
 
