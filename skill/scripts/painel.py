@@ -110,24 +110,28 @@ def _instante(ts):
     return datetime.fromisoformat(ts.replace('Z', '+00:00'))
 
 
+_cache = {}  # ponytail: cache sem limite, um item por arquivo de sessão
+
+
+def _chave(caminho):
+    st = os.stat(caminho)
+    return caminho, st.st_mtime, st.st_size
+
+
 def _do_sdk(caminho):
+    k = ('sdk',) + _chave(caminho)
+    if k not in _cache:
+        with open(caminho) as f:
+            _cache[k] = any('"entrypoint":"sdk' in linha.replace(' ', '') for _, linha in zip(range(50), f))
+    return _cache[k]
+
+
+def _ler(caminho):
+    k = ('ler',) + _chave(caminho)
+    if k in _cache:
+        return _cache[k]
+    usos, saidas, marcas, ferr, tempos = {}, {}, [], Counter(), {}
     with open(caminho) as f:
-        for _, linha in zip(range(50), f):
-            if '"entrypoint":"sdk' in linha.replace(' ', ''):
-                return True
-    return False
-
-
-def sessao(r):
-    arqs = glob.glob(os.path.join(pasta_sessoes(r), '*.jsonl'))
-    if not arqs:
-        return None
-    # sessões do SDK (claude -p de revisores automáticos) caem na mesma pasta e não são a do usuário
-    arqs = [a for a in sorted(arqs, key=os.path.getmtime, reverse=True) if not _do_sdk(a)]
-    if not arqs:
-        return None
-    usos, saidas, marcas, ferr = {}, {}, [], Counter()
-    with open(arqs[0]) as f:
         for linha in f:
             try:
                 l = json.loads(linha)
@@ -149,14 +153,68 @@ def sessao(r):
                 usos[rid] = (u.get('input_tokens', 0) + u.get('cache_read_input_tokens', 0)
                              + u.get('cache_creation_input_tokens', 0))
                 saidas[rid] = u.get('output_tokens', 0)
+                if l.get('timestamp'):
+                    tempos.setdefault(rid, l['timestamp'])
+    _cache[k] = usos, saidas, marcas, ferr, tempos
+    return _cache[k]
+
+
+def _linhas(caminho):
+    k = ('linhas',) + _chave(caminho)
+    if k not in _cache:
+        ls = []
+        with open(caminho) as f:
+            for linha in f:
+                try:
+                    l = json.loads(linha)
+                except ValueError:
+                    continue
+                if isinstance(l, dict):
+                    ls.append(l)
+        _cache[k] = ls
+    return _cache[k]
+
+
+def historico(r):
+    hoje = datetime.now().astimezone().date()
+    dias, horas, vistos = [0] * 140, [0] * 24, set()
+    for a in glob.glob(os.path.join(pasta_sessoes(r), '*.jsonl')):
+        if _do_sdk(a):
+            continue
+        for rid, ts in _ler(a)[4].items():
+            if rid in vistos:
+                continue
+            vistos.add(rid)
+            t = _instante(ts).astimezone()
+            horas[t.hour] += 1
+            i = 139 - (hoje - t.date()).days
+            if 0 <= i < 140:
+                dias[i] += 1
+    return {'dias': dias, 'horas': horas}
+
+
+def sessao(r):
+    arqs = glob.glob(os.path.join(pasta_sessoes(r), '*.jsonl'))
+    if not arqs:
+        return None
+    # sessões do SDK (claude -p de revisores automáticos) caem na mesma pasta e não são a do usuário
+    arqs = [a for a in sorted(arqs, key=os.path.getmtime, reverse=True) if not _do_sdk(a)]
+    if not arqs:
+        return None
+    usos, saidas, marcas, ferr, tempos = _ler(arqs[0])
     if not usos:
         return None
     entrada = list(usos.values())
+    t0 = _instante(marcas[0])
+    span = (_instante(marcas[-1]) - t0).total_seconds()
+    ritmo = [0] * 48
+    for ts in tempos.values():
+        ritmo[min(47, int((_instante(ts) - t0).total_seconds() / span * 48)) if span else 0] += 1
     return {'inicio': marcas[0], 'fim': marcas[-1],
             'duracao_s': int((_instante(marcas[-1]) - _instante(marcas[0])).total_seconds()),
             'requests': len(usos), 'entrada': entrada, 'saida': sum(saidas.values()),
             'ferramentas': [[n, c] for n, c in sorted(ferr.items(), key=lambda x: (-x[1], x[0]))],
-            'contexto': entrada[-1],
+            'contexto': entrada[-1], 'ritmo': ritmo,
             # ponytail: heurística, o modelo não fica no registro; ler o modelo se ele passar a constar
             'janela': 1000000 if max(entrada) > 200000 else 200000}
 
@@ -211,15 +269,7 @@ def rodada(r):
                     sessoes.add(a)
     por_sessao = {}
     for a in sessoes:
-        ls = []
-        with open(a) as f:
-            for linha in f:
-                try:
-                    l = json.loads(linha)
-                except ValueError:
-                    continue
-                if isinstance(l, dict):
-                    ls.append(l)
+        ls = _linhas(a)
         primeiro = next((l['timestamp'] for l in ls if l.get('timestamp')), '')
         por_sessao[os.path.basename(a)[:-6]] = (primeiro, ls)
     ordem = sorted(por_sessao, key=lambda s: por_sessao[s][0])
@@ -321,7 +371,7 @@ def dados(r):
     return {'projeto': os.path.basename(r), 'caminho': caminho, 'momento': m,
             'estado': e, 'erro': erro, 'features': fs, 'atual': atual,
             'tempos': tempo_etapas(r, e) if e else {}, 'sessao': sessao(r),
-            'rodada': rod}
+            'rodada': rod, 'hist': historico(r)}
 
 
 def servir(r, porta):
