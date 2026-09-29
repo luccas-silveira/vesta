@@ -6,7 +6,9 @@ Formatos escolhidos aqui (o plano deixou em aberto):
   pasta ("docs/vesta/mockups/2026-01-02-abc"); passo ausente é None.
 - tempos: dict id da etapa -> minutos (float) ou None.
 """
+import copy
 import json
+import math
 import os
 import re
 import shutil
@@ -1963,6 +1965,249 @@ class PainelInteiroNoNavegador(unittest.TestCase):
         out = self.rodar()
         self.assertEqual(out.get('raf'), 'undefined', 'a simulação ainda define requestAnimationFrame')
         self.assertEqual(out.get('caf'), 'undefined', 'a simulação ainda define cancelAnimationFrame')
+
+
+# Etapa 2 das animações — motor de movimento e gráficos reaproveitados por chave.
+FEAT_QUARTA = {'topico': 'entrada-escalonada', 'data': '2026-09-01',
+               'spec': 'docs/vesta/specs/2026-09-01-entrada-escalonada-design.md', 'research': None,
+               'plano': None, 'mockup': None, 'grill': False}
+
+
+def _attr(nome, outer):
+    m = re.search(rf'^<[^>]*\s{re.escape(nome)}="([^"]*)"', outer)
+    return m and m[1]
+
+
+def _num(nome, outer):
+    v = _attr(nome, outer)
+    return None if v is None else float(v)
+
+
+def _texto(outer):
+    m = re.search(r'>([^<>]*)</\w+>$', outer)
+    return m and m[1]
+
+
+def _nums(s):
+    return [float(x) for x in re.findall(r'-?\d*\.?\d+(?:e[-+]?\d+)?', s or '', re.I)]
+
+
+@unittest.skipUnless(shutil.which('node'), 'node ausente')
+class MovimentoNoNavegador(unittest.TestCase):
+    """Interface que estes testes esperam do HARNESS (skill/scripts/simulacao_painel.js).
+
+    Cenário (JSON em argv[2]):
+      {'modo': 'render', 'passos': [D1, D2, ...], 'ids': [<id>, ...], 'avaliar': [<expr JS>, ...]}
+    - Com 'passos', o HARNESS roda `D=Dk; render()` para cada passo, em ordem, no mesmo contexto.
+      Antes de cada passo depois do primeiro, marca como "visto" todo descendente (recursivo) dos
+      ids pedidos. O 'D' único antigo continua aceito (PainelInteiroNoNavegador).
+    - Saída no stdout:
+      {'raf', 'caf', 'ids': {<id>: {'n', 'filhos'}}   (do ÚLTIMO passo, como hoje),
+       'passos': [{<id>: {'n': nº de filhos diretos,
+                          'mesmos': quantos filhos diretos já estavam marcados como vistos
+                                    (o mesmo objeto de uma leitura anterior; 0 no primeiro passo),
+                          'filhos': [outer de cada filho]}}, ...]   (um item por passo),
+       'avaliado': [resultado JSON de cada expressão de 'avaliar', avaliada no escopo da página
+                    depois do último passo (null vira None)],
+       'pendentes': `typeof vivos!=='undefined' ? vivos.size : null`, depois do último passo}
+    Um erro em qualquer render() deixa o node com código de saída diferente de zero.
+    """
+    GRAFICOS = PainelInteiroNoNavegador.GRAFICOS
+
+    def rodar(self, passos, ids=None, avaliar=()):
+        cen = {'modo': 'render', 'passos': passos, 'ids': ids or self.GRAFICOS, 'avaliar': list(avaliar)}
+        p = subprocess.run(['node', '-e', HARNESS, os.path.join(AQUI, 'painel.html'), json.dumps(cen)],
+                           capture_output=True, text=True, timeout=60)
+        self.assertEqual(p.returncode, 0, f'render() falhou na simulação:\n{p.stderr}')
+        out = json.loads(p.stdout)
+        self.assertEqual(len(out.get('passos') or []), len(passos), 'a simulação não devolve um item por passo')
+        return out
+
+    def D(self):
+        return copy.deepcopy(PAINEL_RODANDO)
+
+    def passos(self, out, g):
+        return [x[g] for x in out['passos']]
+
+    # --- reaproveitamento ---
+
+    def test_mesmos_dados_mantem_cada_filho_como_o_mesmo_objeto(self):
+        p1, p2 = out = self.rodar([self.D(), self.D()])['passos']
+        for g in self.GRAFICOS:
+            with self.subTest(g):
+                self.assertGreater(p1[g]['n'], 0, f'#{g} ficou vazio')
+                self.assertEqual(p2[g]['n'], p1[g]['n'], f'#{g}: a contagem mudou com os mesmos dados')
+                self.assertEqual(p2[g]['mesmos'], p2[g]['n'],
+                                 f'#{g}: {p2[g]["n"] - p2[g]["mesmos"]} filhos recriados na segunda leitura')
+
+    def test_request_nova_acrescenta_15_circulos_e_mantem_os_antigos(self):
+        d2 = self.D()
+        d2['sessao']['entrada'] = ENTRADA + [60_000]
+        d2['sessao']['requests'] += 1
+        p1, p2 = self.passos(self.rodar([self.D(), d2], ids=['pontos']), 'pontos')
+        circ = lambda p: [f for f in p['filhos'] if f.startswith('<circle')]
+        self.assertEqual(len(circ(p2)) - len(circ(p1)), 15)
+        self.assertEqual(p2['n'], p1['n'] + 15)
+        self.assertEqual(p2['mesmos'], p1['n'], 'filhos antigos de #pontos foram recriados')
+        cab = [f for f in circ(p2) if _attr('r', f) == '1.1' and _num('cx', f) == 190]
+        self.assertEqual(len(cab), 1, 'círculo de cabeça da coluna nova não encontrado')
+        mx = max(ENTRADA + [60_000]) * 1.1
+        self.assertAlmostEqual(_num('cy', cab[0]), 108 - 60_000 / mx * 108, places=6,
+                               msg='o cy da cabeça nova não chegou ao valor final')
+
+    def test_tempo_que_muda_leva_barra_e_numero_ao_valor_novo(self):
+        d1, d2 = self.D(), self.D()
+        d1['tempos']['2'], d2['tempos']['2'] = 5.0, 20.0
+        c1, c2 = self.passos(self.rodar([d1, d2], ids=['colunas']), 'colunas')
+        self.assertEqual(c2['n'], c1['n'])
+        self.assertEqual(c2['mesmos'], c2['n'], 'colunas recriadas quando só o valor mudou')
+        barras = [f for f in c2['filhos'] if f.startswith('<rect') and 'url(#hx)' in f]
+        self.assertEqual(len(barras), 2)
+        mx = max(10, 14.5, 20.0) * 1.1
+        self.assertAlmostEqual(_num('height', barras[1]), 20.0 / mx * 96, places=6)
+        self.assertAlmostEqual(_num('y', barras[1]), 108 - 20.0 / mx * 96, places=6)
+        valores = [_texto(f) for f in c2['filhos'] if f.startswith('<text') and 'fill:var(--tinta)' in f]
+        self.assertEqual(valores, ['15', '20'])
+
+    def test_etapa_que_some_de_tempos_perde_a_coluna(self):
+        d2 = self.D()
+        del d2['tempos']['4']
+        c1, c2 = self.passos(self.rodar([self.D(), d2], ids=['colunas']), 'colunas')
+        molduras = lambda p: [f for f in p['filhos'] if f.startswith('<rect') and 'class="s-traco"' in f]
+        rotulos = lambda p: sorted(_texto(f) for f in p['filhos'] if re.fullmatch(r'<text[^>]*>0\d</text>', f))
+        self.assertEqual(len(molduras(c1)), 4)
+        self.assertEqual(rotulos(c1), ['01', '02', '03', '04'])
+        self.assertEqual(len(molduras(c2)), 3, 'a coluna da etapa 4 ficou')
+        self.assertEqual(rotulos(c2), ['01', '02', '03'])
+        self.assertEqual(c2['n'], c1['n'] - 3)
+        self.assertEqual(c2['mesmos'], c2['n'])
+
+    def test_feature_que_sai_e_que_entra_no_radar(self):
+        d2, d3 = self.D(), self.D()
+        d2['features'] = [FEAT_ATUAL, FEAT_TERCEIRA]
+        d3['features'] = [FEAT_ATUAL, FEAT_TERCEIRA, FEAT_QUARTA]
+        r1, r2, r3 = self.passos(self.rodar([self.D(), d2, d3], ids=['radar']), 'radar')
+
+        def trio(p):
+            f = p['filhos']
+            return (sum(1 for x in f if x.startswith('<circle') and _attr('r', x) == '8'),
+                    sum(1 for x in f if x.startswith('<line') and _attr('x1', x) == '110' and _attr('y1', x) == '88'),
+                    sum(1 for x in f if x.startswith('<text') and 'font-weight:600' in x))
+        self.assertEqual(trio(r1), (3, 3, 3))
+        self.assertEqual(trio(r2), (2, 2, 2), 'círculo, linha e número da feature que saiu ficaram')
+        self.assertEqual(r2['n'], r1['n'] - 3)
+        self.assertEqual(r2['mesmos'], r2['n'])
+        self.assertEqual(trio(r3), (3, 3, 3), 'a feature que entrou não ganhou círculo, linha e número')
+        self.assertEqual(r3['n'], r2['n'] + 3)
+        self.assertEqual(r3['mesmos'], r2['n'])
+
+    def test_contexto_novo_leva_o_arco_ao_percentual_novo(self):
+        d2 = self.D()
+        d2['sessao']['contexto'] = 123_400
+        a2 = self.passos(self.rodar([self.D(), d2], ids=['arco']), 'arco')[1]
+        direto = self.passos(self.rodar([d2], ids=['arco']), 'arco')[0]
+        uso = lambda p: [f for f in p['filhos'] if f.startswith('<path') and 'class="s-acento"' in f]
+        self.assertEqual(len(uso(a2)), 1)
+        d = _attr('d', uso(a2)[0])
+        self.assertEqual(d, _attr('d', uso(direto)[0]), 'o traço de uso não terminou no percentual novo')
+        pct = 123_400 / 200_000
+        P = lambda a, rr: (110 - rr * math.cos(a * math.pi), 112 - rr * math.sin(a * math.pi))
+        esperado = [*P(0, 85), 85, 85, 0, 0, 1, *P(pct, 85)]
+        obtido = _nums(d)
+        self.assertEqual(len(obtido), len(esperado), d)
+        for a, b in zip(obtido, esperado):
+            self.assertAlmostEqual(a, b, places=6, msg=d)
+        centro = [f for f in a2['filhos'] if f.startswith('<text') and '30px' in f]
+        self.assertEqual([_texto(f) for f in centro], ['61.7'])
+
+    def test_ferramentas_reordenadas_mantem_os_rotulos(self):
+        d2 = self.D()
+        nova = list(reversed(PAINEL_RODANDO['sessao']['ferramentas']))
+        d2['sessao']['ferramentas'] = nova
+        f1, f2 = self.passos(self.rodar([self.D(), d2], ids=['ferr']), 'ferr')
+        self.assertEqual(f2['n'], f1['n'])
+        self.assertEqual(f2['mesmos'], f2['n'], 'rótulos ou barras recriados ao mudar a ordem')
+        for i, (nome, _) in enumerate(nova):
+            with self.subTest(nome):
+                rot = [f for f in f2['filhos'] if f.startswith('<text') and _texto(f) == nome[:7].upper()]
+                self.assertEqual(len(rot), 1)
+                self.assertAlmostEqual(_num('y', rot[0]), 6 + i * 19 + 4, places=6)
+
+    def test_nada_fica_pendente_depois_do_render(self):
+        d2 = self.D()
+        s = d2['sessao']
+        s['entrada'] = ENTRADA + [60_000]
+        s['contexto'] = 123_400
+        s['ferramentas'] = list(reversed(s['ferramentas']))
+        s['ritmo'] = [(i * 3) % 7 for i in range(48)]
+        d2['tempos']['2'] = 20.0
+        d2['features'] = [FEAT_ATUAL, FEAT_TERCEIRA, FEAT_QUARTA]
+        d2['hist'] = {'dias': [i % 3 for i in range(140)], 'horas': [(h * 5) % 9 for h in range(24)]}
+        for passos in ([self.D()], [self.D(), d2]):
+            with self.subTest(len(passos)):
+                self.assertEqual(self.rodar(passos).get('pendentes'), 0)
+
+    # --- mistura ---
+
+    def misturar(self, *exprs):
+        return self.rodar([self.D()], ids=['arco'], avaliar=exprs).get('avaliado')
+
+    def test_mistura_interpola_cada_numero_do_mesmo_esqueleto(self):
+        self.assertEqual(self.misturar("mistura('M0 0L10 10','M10 0L20 20',0.5)"), ['M5 0L15 15'])
+
+    def test_mistura_esqueletos_diferentes_da_null(self):
+        self.assertEqual(self.misturar("mistura('M0 0L10 10','M0 0Z',0.5)"), [None])
+
+    def test_mistura_numero_igual_fica_como_esta(self):
+        self.assertEqual(self.misturar("mistura('M0.50 0 A5 5 0 0 1 10 10','M0.50 0 A5 5 0 0 1 20 30',0.5)"),
+                         ['M0.50 0 A5 5 0 0 1 15 20'])
+
+    def test_mistura_texto_segue_as_casas_do_destino(self):
+        self.assertEqual(self.misturar("mistura('12.3k','13.1k',0.3,true)", "mistura('12.3k','14k',0.3,true)"),
+                         ['12.5k', '13k'])
+
+    def test_mistura_texto_mantem_zero_a_esquerda(self):
+        self.assertEqual(self.misturar("mistura('req 009','req 012',0.4,true)"), ['req 010'])
+
+
+class MovimentoNaPagina(unittest.TestCase):
+    def setUp(self):
+        with open(os.path.join(AQUI, 'painel.html'), encoding='utf-8') as f:
+            self.h = f.read()
+
+    def desligados_no_reduz(self):
+        sels = set()
+        for m in re.finditer(r'@media\s*\(\s*prefers-reduced-motion\s*:\s*reduce\s*\)\s*\{', self.h):
+            i = j = m.end()
+            n = 1
+            while n and j < len(self.h):
+                n += {'{': 1, '}': -1}.get(self.h[j], 0)
+                j += 1
+            for sel, corpo in re.findall(r'([^{}]+)\{([^{}]*)\}', self.h[i:j - 1]):
+                if re.search(r'transition\s*:\s*none', corpo):
+                    sels |= {' '.join(s.split()) for s in sel.split(',')}
+        return sels
+
+    def test_acento_registrado_com_property_e_transicao_no_body(self):
+        self.assertRegex(self.h, r'@property\s+--acento\s*\{[^}]*syntax\s*:\s*[\'"]<color>[\'"]')
+        self.assertRegex(self.h, r'(?:^|[}\s,])body\s*\{[^}]*transition\s*:[^;}]*--acento')
+
+    def test_hachura_cresce_com_transicao_de_largura(self):
+        self.assertRegex(self.h, r'\.hachura\s+\.cheio\s*\{[^}]*transition\s*:[^;}]*\bwidth\b')
+
+    def test_movimento_reduzido_desliga_as_duas_transicoes(self):
+        sels = self.desligados_no_reduz()
+        self.assertIn('body', sels)
+        self.assertIn('.hachura .cheio', sels)
+
+    def test_script_consulta_movimento_reduzido(self):
+        script = '\n'.join(re.findall(r'<script>([\s\S]*?)</script>', self.h))
+        self.assertRegex(script, r'matchMedia\(\s*[\'"]\(prefers-reduced-motion:\s*reduce\)[\'"]\s*\)')
+
+    def test_sem_restos_do_mockup(self):
+        for t in ('mockup · simular', 'ACOES', 'dados de exemplo'):
+            with self.subTest(t):
+                self.assertNotIn(t, self.h)
 
 
 if __name__ == '__main__':
