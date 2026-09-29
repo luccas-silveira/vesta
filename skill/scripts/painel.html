@@ -201,6 +201,26 @@ body[data-estado=fase]{--acento:var(--verde)} body.perguntando{--acento:var(--ci
 
 .sessao-off .sessao{display:none!important}
 [hidden]{display:none!important}
+/* laterais novas: microtexto funcional ≥ 11px e em tinta-2 */
+.novo .cab .micro,.novo .rodape .micro,.novo svg text{font-size:11px;color:var(--tinta-2);fill:var(--tinta-2)}
+.novo svg text.forte{fill:var(--tinta)}
+.novo .num small{font-size:11px;color:var(--tinta-2)}
+.leg{list-style:none;margin-top:8px}
+.leg li{display:grid;grid-template-columns:20px minmax(0,1fr) auto;gap:6px;padding:4px 0;border-bottom:1px solid var(--traco);font:500 11px/1.3 var(--f-micro);letter-spacing:.06em;text-transform:uppercase;color:var(--tinta-2)}
+.leg li:first-child{color:var(--tinta)}
+.vazio-w{font:500 11px/1.4 var(--f-micro);letter-spacing:.08em;text-transform:uppercase;color:var(--tinta-2);padding:18px 0;text-align:center;background-image:radial-gradient(var(--ponto) 1px,transparent 1.3px);background-size:10px 10px}
+.barras{display:flex;gap:3px;margin-top:12px}.barras i{flex:1;height:14px;box-shadow:inset 0 0 0 1px var(--traco-forte)}
+.barras i.p{background:var(--acento);box-shadow:none}
+.barras i.a{box-shadow:inset 0 0 0 1px var(--acento);background:repeating-linear-gradient(-55deg,var(--acento) 0 3px,transparent 3px 6px)}
+.barras i.t{box-shadow:none;background:repeating-linear-gradient(-55deg,var(--tinta) 0 2px,transparent 2px 5px)}
+.odo{display:flex;gap:3px}
+.odo .d{height:44px;width:26px;overflow:hidden;box-shadow:inset 0 0 0 1px var(--traco-forte);font:300 32px/44px var(--f-display);text-align:center;color:var(--tinta)}
+.odo .d span{display:block;transition:transform .9s cubic-bezier(0.16,1,0.3,1)}
+.odo .d i{display:block;height:44px;font-style:normal;font-variant-numeric:tabular-nums}
+.odo .z{color:var(--tinta-2)}
+@keyframes bate{from{opacity:.3}to{opacity:1}}
+#bat.bate{animation:bate .9s ease-out}
+@media (prefers-reduced-motion:reduce){#bat.bate{animation:none}.odo .d span{transition:none}}
 @keyframes pulso{50%{opacity:.35}}
 .vivo{animation:pulso 1.6s steps(2) infinite}
 @media (prefers-reduced-motion:reduce){.vivo{animation:none}}
@@ -230,6 +250,22 @@ body[data-estado=fase]{--acento:var(--verde)} body.perguntando{--acento:var(--ci
       <div class="cab"><span class="nome">Tokens</span><span class="micro">entrada // req</span></div><div class="regua"></div>
       <svg viewBox="0 0 220 120" id="pontos"></svg>
       <div class="rodape"><span class="micro">req 001</span><span class="micro" id="pico">—</span><span class="micro" id="req-fim">—</span></div>
+    </div>
+    <div class="inst novo">
+      <div class="cab"><span class="nome">Dias</span><span class="micro">req // dia</span></div><div class="regua"></div>
+      <svg viewBox="0 0 220 77" id="dias" role="img" aria-label=""></svg><p class="vazio-w" id="dias-v" hidden></p>
+      <div class="rodape"><span class="micro" id="dias-de">—</span><span class="micro" id="dias-tot">—</span></div>
+    </div>
+    <div class="inst novo">
+      <div class="cab"><span class="nome">Sequência</span><span class="micro">dias seguidos</span></div><div class="regua"></div>
+      <div id="seq-w"><div class="num" id="seq-n">—</div><div class="barras" id="seq-bar" aria-hidden="true"></div>
+      <div class="rodape"><span class="micro">últimos 14 dias</span><span class="micro" id="seq-r">—</span></div></div><p class="vazio-w" id="seq-w-v" hidden></p>
+    </div>
+    <div class="inst novo">
+      <div class="cab"><span class="nome">Radar</span><span class="micro">features // recência</span></div><div class="regua"></div>
+      <svg viewBox="0 0 220 176" id="radar" role="img" aria-label=""></svg><p class="vazio-w" id="radar-v" hidden></p>
+      <ol class="leg" id="radar-leg"></ol>
+      <div class="rodape"><span class="micro">centro = hoje</span><span class="micro" id="radar-n">—</span></div>
     </div>
   </aside>
 
@@ -311,6 +347,31 @@ body[data-estado=fase]{--acento:var(--verde)} body.perguntando{--acento:var(--ci
     <div class="inst sessao">
       <div class="cab"><span class="nome">Ferramentas</span><span class="micro">chamadas</span></div><div class="regua"></div>
       <svg viewBox="0 0 220 100" id="ferr"></svg>
+    </div>
+    <div class="inst novo sessao">
+      <div class="cab"><span class="nome">Onda</span><span class="micro">req // trecho</span></div><div class="regua"></div>
+      <svg viewBox="0 0 220 96" id="onda" role="img" aria-label=""></svg>
+      <div class="rodape"><span class="micro">início</span><span class="micro" id="onda-pico">—</span><span class="micro">agora</span></div>
+    </div>
+    <div class="inst novo sessao">
+      <div class="cab"><span class="nome">Odômetro</span><span class="micro">tokens // sessão</span></div><div class="regua"></div>
+      <div class="odo" id="odo" role="img" aria-label=""></div>
+      <div class="rodape" style="margin-top:8px"><span class="micro" id="odo-e">—</span><span class="micro" id="odo-s">—</span></div>
+    </div>
+    <div class="inst novo">
+      <div class="cab"><span class="nome">Provas</span><span class="micro">teste // etapa</span></div><div class="regua"></div>
+      <div id="prov-w"><div class="barras" style="margin-top:0" id="prov" role="img" aria-label=""></div>
+      <div class="rodape"><span class="micro" id="prov-a">—</span><span class="micro" id="prov-b">—</span></div></div><p class="vazio-w" id="prov-w-v" hidden></p>
+    </div>
+    <div class="inst novo">
+      <div class="cab"><span class="nome">Relógio</span><span class="micro">req // hora do dia</span></div><div class="regua"></div>
+      <svg viewBox="0 0 220 160" id="rel" role="img" aria-label=""></svg><p class="vazio-w" id="rel-v" hidden></p>
+      <div class="rodape"><span class="micro">00h no topo</span><span class="micro" id="rel-p">—</span></div>
+    </div>
+    <div class="inst novo">
+      <div class="cab"><span class="nome">Pulso</span><span class="micro">sincronia</span></div><div class="regua"></div>
+      <svg viewBox="0 0 220 44" id="pulso" role="img" aria-label="Linha de batimento: pisca a cada atualização do painel"><path class="s-forte" d="M0 26H220" stroke-dasharray="1 3"/><path id="bat" class="s-acento" stroke-width="1.5" d="M0 26H78L84 26L90 8L97 42L103 26H220"/><circle cx="97" cy="42" r="2.5" class="f-acento"/></svg>
+      <div class="rodape"><span class="micro">última leitura</span><span class="micro" id="idade2">—</span></div>
     </div>
   </aside>
 </main>
@@ -471,8 +532,78 @@ function render(){
     $('n-req').textContent=String(s.requests).padStart(3,'0')+' req';
     $('n-ferr').textContent=String(s.ferramentas.reduce((a,x)=>a+x[1],0)).padStart(3,'0')+' ferr';
     $('n-saida').textContent=k(s.saida)+' saída'}
+  novos();
   if(!aberto){const f=feature();const d=f&&['plano','spec','research'].find(x=>f[x]);if(d)abrir(d)}
 }
+const HOJE=new Date();
+function vz(id,on,txt){const a=$(id),b=$(id+'-v');a.toggleAttribute('hidden',on);b.hidden=!on;if(on)b.textContent=txt}
+const pintar=(g,arr)=>{g.innerHTML='';arr.forEach(x=>g.append(x))};
+function dias(h){
+  const d=h.dias,n=d.length,tot=d.reduce((a,b)=>a+b,0),g=$('dias');
+  vz('dias',!tot,'sem histórico ainda · aparece com o uso');
+  $('dias-de').textContent=tot?`${Math.ceil(n/7)} semanas`:'—';$('dias-tot').textContent=tot?`hoje ${d[n-1]} req`:'—';
+  if(!tot)return;
+  const max=Math.max(...d),hoje=(HOJE.getDay()+6)%7,r0=(((hoje-(n-1))%7)+7)%7,cols=Math.floor((r0+n-1)/7)+1,st=220/cols;
+  g.setAttribute('viewBox',`0 0 220 ${7*st}`);g.setAttribute('aria-label',`${tot} requisições em ${n} dias; hoje ${d[n-1]}`);
+  const xs=d.map((v,i)=>{const c=Math.floor((r0+i)/7),r=(r0+i)%7,nv=v?Math.ceil(v/max*4):0;
+    return el('rect',{x:c*st,y:r*st,width:st-2,height:st-2,class:nv?'f-acento':'f-fraco',opacity:nv?[.3,.55,.8,1][nv-1]:.14})});
+  const u=d.length-1,c=Math.floor((r0+u)/7),r=(r0+u)%7;
+  xs.push(el('rect',{x:c*st-1,y:r*st-1,width:st,height:st,class:'s-forte'}));pintar(g,xs);
+}
+function seq(h){
+  const d=h.dias,on=!d.some(v=>v);vz('seq-w',on,'sem histórico ainda · aparece com o uso');if(on)return;
+  let s=0;for(let i=d.length-1;i>=0&&d[i]>0;i--)s++;let best=0,c=0;d.forEach(v=>{c=v?c+1:0;best=Math.max(best,c)});
+  $('seq-n').innerHTML=`${s}<small>${s===1?'DIA':'DIAS'}</small>`;
+  $('seq-bar').innerHTML=d.slice(-14).map(v=>`<i${v?' class="p"':''}></i>`).join('');$('seq-r').textContent=`recorde ${best}`;
+}
+function radar(fs){
+  fs=fs.slice(0,8);const g=$('radar'),cx=110,cy=88,R=80,n=fs.length;vz('radar',!n,'nenhuma feature ainda');$('radar-n').textContent=n?`${n} ${n>1?'features':'feature'}`:'—';
+  $('radar-leg').innerHTML='';if(!n)return;
+  const xs=[];[[24,'1 d'],[50,'7 d'],[80,'30 d']].forEach(([r,t])=>{xs.push(el('circle',{cx,cy,r,class:'s-traco','stroke-dasharray':'2 3'}));xs.push(el('text',{x:cx+4,y:cy+r-3},t))});
+  xs.push(el('path',{d:`M${cx} ${cy-R}V${cy+R}M${cx-R} ${cy}H${cx+R}`,class:'s-traco'}));
+  const idade=f=>Math.max(0,Math.round((HOJE-new Date(f.data+'T12:00:00'))/864e5)),raio=a=>a<=1?24*a:a<=7?24+(a-1)/6*26:50+Math.min(a-7,23)/23*30;
+  fs.forEach((f,i)=>{const a=(-35+i*137.5)*Math.PI/180,r=raio(idade(f))||10,x=cx+r*Math.cos(a),y=cy+r*Math.sin(a),novo=i===0;
+    xs.push(el('line',{x1:cx,y1:cy,x2:x,y2:y,class:novo?'s-acento':'s-traco',opacity:novo?.6:1}));
+    xs.push(el('circle',{cx:x,cy:y,r:8,class:novo?'f-acento':'f-tinta'}));
+    xs.push(el('text',{x,y:y+4,'text-anchor':'middle',style:'fill:var(--chao-2);font-weight:600'},i+1));
+    $('radar-leg').insertAdjacentHTML('beforeend',`<li><span>${i+1}</span><span>${esc(f.topico.replace(/-/g,' '))}</span><span>${idade(f)} d</span></li>`)});
+  xs.push(el('circle',{cx,cy,r:2,class:'f-tinta'}));pintar(g,xs);
+  g.setAttribute('aria-label',fs.map(f=>`${f.topico.replace(/-/g,' ')}, ${idade(f)} dias`).join('; '));
+}
+function onda(s){
+  const g=$('onda'),r=s.ritmo,max=Math.max(1,...r),n=r.length,st=220/n,cy=48,xs=[el('path',{d:`M0 ${cy}H220`,class:'s-forte','stroke-dasharray':'1 3'})];
+  r.forEach((v,i)=>{const h=Math.max(1.5,v/max*44),x=st*i+st/2;
+    xs.push(el('line',{x1:x,x2:x,y1:cy-h,y2:cy+h,'stroke-width':2.4,class:i===n-1?'s-acento':'',stroke:i===n-1?'':'var(--tinta-2)',opacity:i===n-1?1:.35+.65*v/max}))});
+  pintar(g,xs);$('onda-pico').textContent=`pico ${max} req`;g.setAttribute('aria-label',`${s.requests} requisições em ${n} trechos da sessão; pico de ${max}`);
+}
+function odo(s){
+  const e=s.entrada.reduce((a,b)=>a+b,0),t=String(e+s.saida).padStart(7,'0'),lead=t.length-String(e+s.saida).length;
+  const o=$('odo');if(o.children.length!==t.length){o.innerHTML=t.split('').map(()=>`<div class="d"><span>${[0,1,2,3,4,5,6,7,8,9].map(x=>`<i>${x}</i>`).join('')}</span></div>`).join('')}
+  [...o.children].forEach((c,i)=>{c.classList.toggle('z',i<lead);c.firstChild.style.transform=`translateY(${-(+t[i])*44}px)`});
+  o.setAttribute('aria-label',`${(e+s.saida).toLocaleString('pt-BR')} tokens na sessão`);
+  $('odo-e').textContent=`entrada ${k(e)}`;$('odo-s').textContent=`saída ${k(s.saida)}`;
+}
+function provas(e){
+  const xs=e?e.etapas:[],on=!xs.length;vz('prov-w',on,'sem execução · aparece ao rodar a vesta');if(on)return;
+  const at=xs.find(x=>x.status!=='feita'&&x.status!=='travada'),cl=x=>x.status==='feita'?'p':x.status==='travada'?'t':x===at&&x.provas.teste.vermelho?'a':'';
+  const tent=xs.reduce((a,x)=>a+(x.provas.teste.tentativas||0),0),ok=xs.filter(x=>x.status==='feita').length,tr=xs.filter(x=>x.status==='travada').length;
+  $('prov').innerHTML=xs.map(x=>`<i class="${cl(x)}"></i>`).join('');
+  $('prov').setAttribute('aria-label',`${ok} de ${xs.length} etapas com prova verde${tr?`, ${tr} travada`:''}`);
+  $('prov-a').textContent=`${ok} passou${tr?` · ${tr} travada`:''}`;$('prov-b').textContent=`${tent} tentativas`;
+}
+function relogio(h){
+  const g=$('rel'),v=h.horas,max=Math.max(...v),cx=110,cy=80,r0=34;vz('rel',!max,'sem histórico ainda · aparece com o uso');$('rel-p').textContent=max?`pico ${pad(v.indexOf(max))}h`:'—';
+  if(!max)return;
+  const xs=[el('circle',{cx,cy,r:r0-4,class:'s-traco'})];
+  v.forEach((c,i)=>{const a=i/24*2*Math.PI-Math.PI/2,f=c/max,r1=r0+2+f*28;
+    xs.push(el('line',{x1:cx+r0*Math.cos(a),y1:cy+r0*Math.sin(a),x2:cx+r1*Math.cos(a),y2:cy+r1*Math.sin(a),'stroke-width':3,class:f>.6?'s-acento':'',stroke:f>.6?'':'var(--tinta-2)',opacity:f>.6?1:.3+f*.7}))});
+  [0,6,12,18].forEach(hh=>{const a=hh/24*2*Math.PI-Math.PI/2;xs.push(el('text',{x:cx+75*Math.cos(a),y:cy+75*Math.sin(a)+4,'text-anchor':'middle'},pad(hh)))});
+  xs.push(el('text',{x:cx,y:cy+4,'text-anchor':'middle',class:'forte',style:'font:300 22px var(--f-display);fill:var(--tinta)'},pad(v.indexOf(max))+'H'));
+  pintar(g,xs);g.setAttribute('aria-label',`atividade por hora do dia; pico às ${pad(v.indexOf(max))} horas`);
+}
+function pulso(){const p=$('bat');p.classList.remove('bate');void p.getBoundingClientRect();p.classList.add('bate')}
+function novos(){dias(D.hist);seq(D.hist);radar(D.features||[]);provas(D.estado);relogio(D.hist);pulso();
+  if(D.sessao){onda(D.sessao);odo(D.sessao)}}
 const NOMES={ativacao:'Ativação',spec:'Spec',pesquisa:'Pesquisa',grill:'Grill',mockup:'Mockup',plano:'Plano',execucao:'Execução',concluida:'Concluída'};
 function rodada(r){
   const aviso=$('rodada-aviso'),cols=$('rodada-cols');
