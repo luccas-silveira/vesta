@@ -1,8 +1,10 @@
 """Testes do vesta.py. Cada teste monta um repositório git descartável."""
 import json
 import os
+import socket
 import subprocess
 import tempfile
+import time
 import unittest
 import urllib.request
 
@@ -766,6 +768,77 @@ class ConcluirTela(ComMockup):
         p = self.sf('concluir', '2')
         self.assertEqual(p.returncode, 0, p.stderr)
         self.assertEqual(self.status('2'), 'feita')
+
+
+class Aberto(Base):
+    """`vesta.py aberto <cwd>`: 0 com a página do painel da raiz aberta; 1 no resto; mudo."""
+    PRAZO = 1.5  # VESTA_PRAZO_ABERTO do servidor de teste (padrão real: 10 s)
+
+    def setUp(self):
+        super().setUp()
+        import painel
+        self.porta = painel.porta(self.r)
+        self.fora = tempfile.TemporaryDirectory()  # cwd do processo: o comando usa o argumento
+        self.addCleanup(self.fora.cleanup)
+
+    def servir(self):
+        if self.escuta():
+            self.skipTest(f'porta {self.porta} já ocupada nesta máquina')
+        env = {**ENV, 'VESTA_PRAZO_ABERTO': str(self.PRAZO)}
+        p = subprocess.Popen(['python3', os.path.join(AQUI, 'painel.py'), 'servir', self.r,
+                              str(self.porta)], env=env,
+                             stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        self.addCleanup(p.wait)
+        self.addCleanup(p.kill)
+        fim = time.time() + 5
+        while not self.escuta():
+            if time.time() > fim:
+                self.fail('servidor não abriu a porta')
+            time.sleep(0.05)
+
+    def escuta(self):
+        try:
+            socket.create_connection(('127.0.0.1', self.porta), timeout=0.3).close()
+            return True
+        except OSError:
+            return False
+
+    def estado(self):
+        urllib.request.urlopen(f'http://127.0.0.1:{self.porta}/estado', timeout=5).read()
+
+    def aberto(self, cwd=None):
+        p = self.sf('aberto', cwd or self.r, cwd=self.fora.name)
+        self.assertEqual((p.stdout, p.stderr), ('', ''))
+        return p.returncode
+
+    def test_sem_painel_sai_1(self):
+        self.assertEqual(self.aberto(), 1)
+
+    def test_painel_sem_pagina_sai_1(self):
+        self.servir()
+        self.assertEqual(self.aberto(), 1)
+
+    def test_pagina_aberta_sai_0(self):
+        self.servir()
+        self.estado()
+        self.assertEqual(self.aberto(), 0)
+
+    def test_subpasta_usa_a_raiz(self):
+        os.makedirs(os.path.join(self.r, 'a', 'b'))
+        self.servir()
+        self.estado()
+        self.assertEqual(self.aberto(os.path.join(self.r, 'a', 'b')), 0)
+
+    def test_pagina_fechada_pelo_prazo_sai_1(self):
+        self.servir()
+        self.estado()
+        time.sleep(self.PRAZO + 0.3)
+        self.assertEqual(self.aberto(), 1)
+
+    def test_erro_sai_1_sem_saida(self):
+        self.assertEqual(self.aberto(os.path.join(self.r, 'nao-existe', 'x')), 1)
+        p = self.sf('aberto', cwd=self.fora.name)  # sem argumento
+        self.assertEqual((p.returncode, p.stdout, p.stderr), (1, '', ''))
 
 
 if __name__ == '__main__':

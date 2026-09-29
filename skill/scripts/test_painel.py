@@ -13,6 +13,7 @@ import subprocess
 import sys
 import socket
 import tempfile
+import threading
 import time
 import unittest
 import urllib.error
@@ -410,13 +411,17 @@ def porta_livre():
         return s.getsockname()[1]
 
 
-class Servidor(Base):
+class ServidorBase(Base):
+    PRAZOS = {}  # VESTA_PRAZO_* passados ao processo do servidor; vazio = prazos de verdade
+
     def setUp(self):
         super().setUp()
         self.arquivo('docs/vesta/specs/x.md', '# Spec X\ncorpo')
         self.porta = porta_livre()
+        env = {k: v for k, v in os.environ.items() if not k.startswith('VESTA_PRAZO_')}
+        env.update(self.PRAZOS)
         self.proc = subprocess.Popen([sys.executable, os.path.join(AQUI, 'painel.py'), 'servir',
-                                      self.r, str(self.porta)],
+                                      self.r, str(self.porta)], env=env,
                                      stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
         self.addCleanup(self.proc.wait)
         self.addCleanup(self.proc.kill)
@@ -437,10 +442,14 @@ class Servidor(Base):
         except urllib.error.HTTPError as e:
             return e.code, e.headers.get('Content-Type', ''), e.read()
 
+
+class Servidor(ServidorBase):
     def test_estado_devolve_dados_da_raiz(self):
         st, _, corpo = self.get('/estado')
         self.assertEqual(st, 200)
-        self.assertEqual(json.loads(corpo), json.loads(json.dumps(painel.dados(self.r))))
+        d = json.loads(corpo)
+        d.pop('perguntas', None)  # vem da memória do servidor, não de dados(r)
+        self.assertEqual(d, json.loads(json.dumps(painel.dados(self.r))))
 
     def test_doc_devolve_texto_do_arquivo(self):
         st, _, corpo = self.get('/doc?caminho=docs/vesta/specs/x.md')
@@ -1135,6 +1144,271 @@ class RodadaCostura(RodadaBase):
         self.gravar(estado([etapa('1')], plano='docs/vesta/plans/2026-01-01-velha.md'))
         with self.subTest('com execução: a feature do plano'):
             self.assertEqual(painel.rodada(self.r)['sessoes'], ['v', 'b'])
+
+
+# Prazos curtos para o teste não dormir 10/15/5 s. O servidor lê VESTA_PRAZO_ABERTO,
+# VESTA_PRAZO_ABANDONO e VESTA_PRAZO_OUTRO (segundos, float) do ambiente; sem elas, 10, 15 e 5.
+# Valores distintos entre si: trocar um prazo pelo outro reprova algum teste.
+ABERTO, ABANDONO, OUTRO = 0.5, 1.2, 0.8
+Q = [{'question': 'Qual cor?', 'header': 'Cor', 'multiSelect': False,
+      'options': [{'label': 'azul', 'description': ''}, {'label': 'verde', 'description': ''}]}]
+
+
+class PrazosPadrao(unittest.TestCase):
+    def test_prazos_padrao_sao_10_15_e_5(self):
+        self.assertEqual((painel.PRAZO_ABERTO, painel.PRAZO_ABANDONO, painel.PRAZO_OUTRO),
+                         (10, 15, 5))
+
+
+class PonteBase(ServidorBase):
+    PRAZOS = {'VESTA_PRAZO_ABERTO': str(ABERTO), 'VESTA_PRAZO_ABANDONO': str(ABANDONO),
+              'VESTA_PRAZO_OUTRO': str(OUTRO)}
+
+    def post(self, caminho, corpo):
+        dado = corpo if isinstance(corpo, bytes) else json.dumps(corpo).encode()
+        req = urllib.request.Request(f'http://127.0.0.1:{self.porta}{caminho}', data=dado,
+                                     method='POST', headers={'Content-Type': 'application/json'})
+        try:
+            with urllib.request.urlopen(req, timeout=5) as r:
+                return r.status, r.read()
+        except urllib.error.HTTPError as e:
+            return e.code, e.read()
+
+    def json(self, caminho):
+        st, _, corpo = self.get(caminho)
+        return json.loads(corpo)
+
+    def aberto(self):
+        return self.json('/aberto')
+
+    def perguntas(self):
+        return self.json('/estado')['perguntas']
+
+    def pergunta(self, id_):
+        return self.json(f'/pergunta/{id_}')
+
+    def perguntar(self, id_, questions=Q, knobler=False):
+        st, corpo = self.post('/pergunta', {'id': id_, 'questions': questions, 'knobler': knobler})
+        self.assertEqual(st, 200, corpo)
+
+
+class Aberto(PonteBase):
+    def test_falso_antes_de_qualquer_estado(self):
+        self.assertEqual(self.aberto(), {'aberto': False})
+
+    def test_verdadeiro_logo_depois_do_estado(self):
+        self.get('/estado')
+        self.assertEqual(self.aberto(), {'aberto': True})
+
+    def test_falso_passado_o_prazo_mesmo_consultando_aberto(self):
+        self.get('/estado')
+        fim = time.time() + ABERTO + 0.3
+        while time.time() < fim:  # /aberto não conta como página aberta
+            self.aberto()
+            time.sleep(0.1)
+        self.assertEqual(self.aberto(), {'aberto': False})
+        self.get('/estado')
+        self.assertEqual(self.aberto(), {'aberto': True})
+
+
+class AbertoPrazoReal(ServidorBase):
+    def test_sem_variavel_segue_aberto_depois_do_prazo_curto(self):
+        self.get('/estado')
+        time.sleep(ABERTO + 0.3)
+        st, _, corpo = self.get('/aberto')
+        self.assertEqual((st, json.loads(corpo)), (200, {'aberto': True}))
+
+
+class Fila(PonteBase):
+    def test_estado_sem_perguntas_traz_lista_vazia(self):
+        self.assertEqual(self.perguntas(), [])
+
+    def test_pendentes_em_ordem_de_chegada_com_os_campos(self):
+        outra = [{'question': 'E o tamanho?', 'header': 'Tam', 'multiSelect': True,
+                  'options': [{'label': 'P', 'description': ''}]}]
+        self.perguntar('z', Q, True)
+        self.perguntar('a', outra, False)
+        self.perguntar('m', Q, False)
+        self.assertEqual(self.perguntas(), [
+            {'id': 'z', 'questions': Q, 'knobler': True, 'estado': 'pendente'},
+            {'id': 'a', 'questions': outra, 'knobler': False, 'estado': 'pendente'},
+            {'id': 'm', 'questions': Q, 'knobler': False, 'estado': 'pendente'}])
+
+    def test_postagens_simultaneas_nao_perdem_pergunta(self):
+        n = 30
+        barreira = threading.Barrier(n)
+        erros = []
+
+        def postar(i):
+            barreira.wait()
+            st, corpo = self.post('/pergunta', {'id': f'p{i}', 'questions': Q, 'knobler': False})
+            if st != 200:
+                erros.append((i, st, corpo))
+
+        ts = [threading.Thread(target=postar, args=(i,)) for i in range(n)]
+        for t in ts:
+            t.start()
+        for t in ts:
+            t.join()
+        self.assertEqual(erros, [])
+        ids = [p['id'] for p in self.perguntas()]
+        self.assertEqual(sorted(ids), sorted(f'p{i}' for i in range(n)))
+        self.assertEqual(len(ids), n)
+
+    def test_corpo_invalido_e_400_e_nada_entra(self):
+        for corpo in (b'nao e json', b'', b'[]', b'{}', {'questions': Q, 'knobler': False},
+                      {'id': 'x', 'knobler': False}):
+            with self.subTest(corpo=corpo):
+                self.assertEqual(self.post('/pergunta', corpo)[0], 400)
+        self.assertEqual(self.perguntas(), [])
+
+
+class Resposta(PonteBase):
+    ANS = {'Qual cor?': {'labels': ['azul'], 'text': ''}}
+
+    def test_pendente_ate_responder(self):
+        self.perguntar('q1')
+        self.get('/estado')
+        self.assertEqual(self.pergunta('q1'), {'estado': 'pendente'})
+
+    def test_responder_devolve_respostas_e_tira_da_fila(self):
+        self.perguntar('q1')
+        self.perguntar('q2')
+        st, _ = self.post('/resposta/q1', {'answers': self.ANS})
+        self.assertEqual(st, 200)
+        self.assertEqual(self.pergunta('q1'), {'estado': 'respondida', 'answers': self.ANS})
+        self.assertEqual([p['id'] for p in self.perguntas()], ['q2'])
+
+    def test_desconhecida(self):
+        self.assertEqual(self.pergunta('nunca'), {'estado': 'desconhecida'})
+
+    def test_responder_de_novo_e_409_e_vale_a_primeira(self):
+        self.perguntar('q1')
+        self.post('/resposta/q1', {'answers': self.ANS})
+        outra = {'Qual cor?': {'labels': ['verde'], 'text': 'x'}}
+        self.assertEqual(self.post('/resposta/q1', {'answers': outra})[0], 409)
+        self.assertEqual(self.pergunta('q1'), {'estado': 'respondida', 'answers': self.ANS})
+
+    def test_corpo_invalido_e_400_e_segue_pendente(self):
+        self.perguntar('q1')
+        for corpo in (b'nao e json', b'', b'[]', b'{}', {'respostas': self.ANS}):
+            with self.subTest(corpo=corpo):
+                self.assertEqual(self.post('/resposta/q1', corpo)[0], 400)
+        self.get('/estado')
+        self.assertEqual(self.pergunta('q1'), {'estado': 'pendente'})
+        self.assertEqual([p['id'] for p in self.perguntas()], ['q1'])
+
+    def test_abandonada_sem_estado_pelo_prazo_de_abandono(self):
+        self.perguntar('q1')
+        self.get('/estado')
+        time.sleep(ABERTO + 0.3)  # já fechado (prazo de aberto), mas ainda não abandonado
+        self.assertEqual(self.pergunta('q1'), {'estado': 'pendente'})
+        fim = time.time() + ABANDONO
+        while time.time() < fim:  # consultar /pergunta não conta como página aberta
+            self.pergunta('q1')
+            time.sleep(0.1)
+        self.assertEqual(self.pergunta('q1'), {'estado': 'abandonada'})
+
+    def test_respondida_nao_vira_abandonada(self):
+        self.perguntar('q1')
+        self.get('/estado')
+        self.post('/resposta/q1', {'answers': self.ANS})
+        time.sleep(ABANDONO + 0.3)
+        self.assertEqual(self.pergunta('q1'), {'estado': 'respondida', 'answers': self.ANS})
+
+
+class Encerrar(PonteBase):
+    ANS = {'Qual cor?': {'labels': [], 'text': 'roxo'}}
+
+    def test_fica_como_outro_pelo_prazo_e_depois_sai(self):
+        self.perguntar('q1')
+        self.perguntar('q2')
+        st, _ = self.post('/pergunta/q1/encerrar', {'motivo': 'knobler'})
+        self.assertEqual(st, 200)
+        self.assertEqual(self.pergunta('q1'), {'estado': 'encerrada'})
+        ps = {p['id']: p['estado'] for p in self.perguntas()}
+        self.assertEqual(ps, {'q1': 'outro', 'q2': 'pendente'})
+        time.sleep(ABERTO + 0.1)  # antes do prazo de "outro"
+        self.assertIn('q1', [p['id'] for p in self.perguntas()])
+        time.sleep(0.4)  # ~1.0 s: passou de OUTRO (0.8), antes de ABANDONO (1.2)
+        self.assertEqual([p['id'] for p in self.perguntas()], ['q2'])
+        self.assertEqual(self.pergunta('q1'), {'estado': 'encerrada'})
+
+    def test_responder_encerrada_e_409_e_nada_muda(self):
+        self.perguntar('q1')
+        self.post('/pergunta/q1/encerrar', {'motivo': 'knobler'})
+        self.assertEqual(self.post('/resposta/q1', {'answers': self.ANS})[0], 409)
+        self.assertEqual(self.pergunta('q1'), {'estado': 'encerrada'})
+        self.assertEqual([(p['id'], p['estado']) for p in self.perguntas()], [('q1', 'outro')])
+
+    def test_corpo_invalido_e_400_e_segue_pendente(self):
+        self.perguntar('q1')
+        for corpo in (b'nao e json', b'', b'[]', b'{}'):
+            with self.subTest(corpo=corpo):
+                self.assertEqual(self.post('/pergunta/q1/encerrar', corpo)[0], 400)
+        self.get('/estado')
+        self.assertEqual(self.pergunta('q1'), {'estado': 'pendente'})
+
+
+class Achar(PainelBase):
+    def setUp(self):
+        super().setUp()
+        self.arquivo('docs/vesta/specs/x.md', 'x')
+        self.n = painel.porta(self.r)
+        self.prox = [4700 + (self.n - 4700 + i) % 100 for i in range(1, 3)]
+
+    def servir(self, raiz, n):
+        p = subprocess.Popen([sys.executable, os.path.join(AQUI, 'painel.py'), 'servir', raiz,
+                              str(n)], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        self.addCleanup(p.wait)
+        self.addCleanup(p.kill)
+        fim = time.time() + 5
+        while not escuta(n):
+            if time.time() > fim:
+                self.fail('servidor não abriu a porta')
+            time.sleep(0.05)
+
+    def ocupar(self, n):
+        s = socket.socket()
+        s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        s.bind(('127.0.0.1', n))
+        s.listen()
+        self.addCleanup(s.close)
+
+    def test_sem_servidor_e_none_e_nao_sobe(self):
+        if escuta(self.n):
+            self.skipTest(f'porta {self.n} já ocupada nesta máquina')
+        self.assertIsNone(painel.achar(self.r))
+        time.sleep(0.3)
+        self.assertFalse(escuta(self.n))
+        self.assertEqual([i for i in range(100) if f'vesta-painel {self.r}' in quem(4700 + i)], [])
+
+    def test_acha_o_servidor_no_ar(self):
+        u = painel.subir(self.r)
+        self.assertIsNotNone(u)
+        self.assertEqual(painel.achar(self.r), u)
+
+    def test_pula_porta_ocupada_por_outro(self):
+        if escuta(self.n) or escuta(self.prox[0]):
+            self.skipTest('portas já ocupadas nesta máquina')
+        self.ocupar(self.n)
+        self.servir(self.r, self.prox[0])
+        self.assertEqual(painel.achar(self.r), self.url(self.prox[0]))
+
+    def test_para_na_primeira_porta_livre(self):
+        if any(escuta(n) for n in [self.n, *self.prox]):
+            self.skipTest('portas já ocupadas nesta máquina')
+        self.ocupar(self.n)
+        self.servir(self.r, self.prox[1])  # depois de uma porta livre: não é achado
+        self.assertIsNone(painel.achar(self.r))
+
+    def test_painel_de_outra_raiz_nao_conta(self):
+        if escuta(self.n) or escuta(self.prox[0]):
+            self.skipTest('portas já ocupadas nesta máquina')
+        outra = tempfile.TemporaryDirectory()
+        self.addCleanup(outra.cleanup)
+        self.servir(os.path.realpath(outra.name), self.n)
+        self.assertIsNone(painel.achar(self.r))
 
 
 if __name__ == '__main__':
