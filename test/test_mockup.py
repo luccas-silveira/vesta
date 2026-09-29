@@ -171,5 +171,33 @@ class TestParada(unittest.TestCase):
                          'parada sem o que a autoverificação corrigiu')
 
 
+# etapa 20: os nomes das provas são os da etapa 19 da vesta-interface (VER-05, VER-10, VER-16 e o
+# passo 3), e o script recusa sem eles
+PROVAS = ('relatorio.md', 'r<n>-375.png', 'r<n>-1440.png', 'r<n>-detector-375.json',
+          'r<n>-detector-1440.json')
+DIRECOES = ('docs/design/mockups/<tela>-a.html', '<tela>-b.html', '<tela>-a-375.png',
+            '<tela>-a-1440.png', '<tela>-b-375.png', '<tela>-b-1440.png')
+
+
+class TestProvasDaVerificacao(unittest.TestCase):
+    def test_autoverificacao_usa_os_nomes_das_provas(self):
+        corpo = secao('autoverifica')
+        faltam = [n for n in PROVAS if n not in corpo]
+        self.assertEqual(faltam, [], 'a autoverificação não usa estes nomes da etapa 19')
+
+    def test_cita_os_arquivos_das_duas_direcoes(self):
+        faltam = [n for n in DIRECOES if n not in texto()]
+        self.assertEqual(faltam, [], 'mockup.md não cita estes arquivos das direções')
+
+    def test_diz_que_iniciar_recusa_sem_as_provas(self):
+        ps = [p for p in com(r'\biniciar\b') if re.search(r'recus', p) and 'relatorio.md' in p]
+        self.assertTrue(ps, 'falta dizer que iniciar recusa sem as provas da verificação')
+
+    def test_provas_commitadas_na_pasta_do_mockup(self):
+        ps = [p for p in com(r'relatorio\.md') if re.search(r'pasta do mockup', p)
+              and re.search(r'commit', p)]
+        self.assertTrue(ps, 'falta dizer que as provas ficam commitadas na pasta do mockup')
+
+
 if __name__ == '__main__':
     unittest.main()

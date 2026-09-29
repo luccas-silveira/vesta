@@ -462,14 +462,71 @@ class Adocao(Base):
         self.assertFalse(os.path.exists(self.caminho_estado))
 
 
-class Mockup(Base):
-    """Plano com tela não executa sem mockup commitado."""
+PASTA_MOCK = 'docs/vesta/mockups/2026-09-28-x'
+MOCK = PASTA_MOCK + '/index.html'
+
+
+def provas(pasta, n=1):
+    """As provas da verificação (VER-05, VER-10, VER-16) numa pasta, com o mesmo N."""
+    return {f'{pasta}/relatorio.md': 'rodada 1',
+            f'{pasta}/r{n}-375.png': 'png', f'{pasta}/r{n}-1440.png': 'png',
+            f'{pasta}/r{n}-detector-375.json': '[]', f'{pasta}/r{n}-detector-1440.json': '[]'}
+
+
+def direcoes(tela='painel'):
+    """As duas direções da tela nova e os quatro prints delas (passo 3 da vesta-interface)."""
+    d = 'docs/design/mockups'
+    return {f'{d}/{tela}-a.html': '<p>a', f'{d}/{tela}-b.html': '<p>b',
+            f'{d}/{tela}-a-375.png': 'png', f'{d}/{tela}-a-1440.png': 'png',
+            f'{d}/{tela}-b-375.png': 'png', f'{d}/{tela}-b-1440.png': 'png'}
+
+
+def completo():
+    return {MOCK: '<p>mock', **provas(PASTA_MOCK), **direcoes()}
+
+
+class ComMockup(Base):
+    """Ferramentas para montar mockup, provas e direções no repositório descartável."""
     TELA = [{'id': '1', 'titulo': 'tela', 'tela': True}]
 
     def criar_com(self, **extra):
         d = {'plano': 'plano.md', 'teste': TESTE, 'tela': [], 'etapas': self.TELA, **extra}
         p = self.sf('criar', entrada=json.dumps(d))
         self.assertEqual(p.returncode, 0, p.stderr)
+
+    def escrever(self, arquivos):
+        for rel, conteudo in arquivos.items():
+            caminho = os.path.join(self.r, rel)
+            os.makedirs(os.path.dirname(caminho), exist_ok=True)
+            with open(caminho, 'w') as f:
+                f.write(conteudo)
+
+    def commitar(self, arquivos, msg='mockup'):
+        self.escrever(arquivos)
+        self.git('add', '-A')
+        self.git('commit', '-q', '-m', msg)
+
+    def sem(self, *nomes, base=None):
+        """O conjunto completo menos os arquivos cujo caminho termina em algum dos nomes."""
+        return {k: v for k, v in (base or completo()).items() if not k.endswith(nomes)}
+
+    def ignorar(self, *rels):
+        """Presente no disco, fora do git, com a árvore limpa."""
+        with open(os.path.join(self.r, '.git', 'info', 'exclude'), 'a') as f:
+            f.write(''.join(r + '\n' for r in rels))
+
+    def recusa_iniciar(self, falta):
+        p = self.sf('iniciar')
+        self.assertEqual(p.returncode, 1, p.stdout)
+        self.assertRegex(p.stderr, falta)
+        self.assertEqual(self.estado()['espera'], 'plano')
+        return p
+
+
+class Mockup(ComMockup):
+    """Plano com tela não executa sem mockup commitado e as provas da verificação dele."""
+
+    # --- o que já valia, com as provas acrescentadas
 
     def test_iniciar_recusa_etapa_de_tela_sem_mockup(self):
         self.criar_com()
@@ -485,16 +542,18 @@ class Mockup(Base):
         self.assertIn('mockup', p.stderr)
 
     def test_iniciar_recusa_mockup_que_nao_esta_no_git(self):
-        self.criar_com(mockup='docs/mock.html')
+        self.commitar(self.sem('index.html'))
+        self.criar_com(mockup=MOCK)
         p = self.sf('iniciar')
         self.assertEqual(p.returncode, 1)
         self.assertIn('mockup', p.stderr)
 
-    def test_iniciar_aceita_mockup_commitado(self):
-        self.commit('mock.html')
-        self.criar_com(mockup='mock.html')
+    def test_iniciar_aceita_mockup_commitado_com_as_provas(self):
+        self.commitar(completo())
+        self.criar_com(mockup=MOCK)
         p = self.sf('iniciar')
         self.assertEqual(p.returncode, 0, p.stderr)
+        self.assertIsNone(self.estado()['espera'])
 
     def test_iniciar_sem_tela_dispensa_mockup(self):
         self.criar()
@@ -509,16 +568,204 @@ class Mockup(Base):
         self.assertIn('mockup', p.stderr)
         self.assertEqual(len(self.estado()['etapas']), 1)
 
-    def test_adicionar_aceita_objeto_com_mockup_commitado(self):
+    def test_adicionar_aceita_objeto_com_mockup_e_provas_commitados(self):
         self.criar()
         self.sf('iniciar')
-        self.commit('mock.html')
+        self.commitar(completo())
         p = self.sf('adicionar', entrada=json.dumps(
-            {'mockup': 'mock.html', 'etapas': [{'id': '2', 'titulo': 't', 'tela': True}]}))
+            {'mockup': MOCK, 'etapas': [{'id': '2', 'titulo': 't', 'tela': True}]}))
         self.assertEqual(p.returncode, 0, p.stderr)
         e = self.estado()
-        self.assertEqual(e['mockup'], 'mock.html')
+        self.assertEqual(e['mockup'], MOCK)
         self.assertEqual(len(e['etapas']), 2)
+
+    # --- provas da verificação na pasta do mockup
+
+    def test_iniciar_recusa_sem_cada_prova_dizendo_qual_falta(self):
+        faltas = {'relatorio.md': r'relatorio\.md', 'r1-375.png': r'r(1|<N>)-375\.png',
+                  'r1-1440.png': r'r(1|<N>)-1440\.png',
+                  'r1-detector-375.json': r'r(1|<N>)-detector-375\.json',
+                  'r1-detector-1440.json': r'r(1|<N>)-detector-1440\.json'}
+        self.criar_com(mockup=MOCK)
+        for nome, falta in faltas.items():
+            with self.subTest(falta=nome):
+                self.git('rm', '-q', '-r', '--ignore-unmatch', 'docs')
+                self.commitar(self.sem(nome), msg=f'sem {nome}')
+                self.recusa_iniciar(falta)
+
+    def test_iniciar_recusa_provas_presentes_mas_fora_do_git(self):
+        self.commitar(self.sem('relatorio.md'))
+        self.ignorar(f'{PASTA_MOCK}/relatorio.md')
+        self.escrever({f'{PASTA_MOCK}/relatorio.md': 'rodada 1'})
+        self.criar_com(mockup=MOCK)
+        self.recusa_iniciar(r'relatorio\.md')
+
+    def test_iniciar_recusa_prints_e_detectores_de_rodadas_diferentes(self):
+        misturado = {k: v for k, v in completo().items() if '/r1-' not in k}
+        misturado.update({f'{PASTA_MOCK}/r1-375.png': 'png', f'{PASTA_MOCK}/r1-detector-375.json': '[]',
+                          f'{PASTA_MOCK}/r2-1440.png': 'png', f'{PASTA_MOCK}/r2-detector-1440.json': '[]'})
+        self.commitar(misturado)
+        self.criar_com(mockup=MOCK)
+        self.recusa_iniciar(r'1440|375')
+
+    def test_iniciar_aceita_provas_de_outra_rodada(self):
+        self.commitar({MOCK: '<p>mock', **provas(PASTA_MOCK, n=3), **direcoes()})
+        self.criar_com(mockup=MOCK)
+        p = self.sf('iniciar')
+        self.assertEqual(p.returncode, 0, p.stderr)
+
+    def test_iniciar_recusa_provas_fora_da_pasta_do_mockup(self):
+        self.commitar({MOCK: '<p>mock', **provas('docs/vesta/mockups/outra'), **direcoes()})
+        self.criar_com(mockup=MOCK)
+        self.recusa_iniciar(r'relatorio\.md')
+
+    def test_iniciar_recusa_detector_que_nao_e_json(self):
+        self.commitar({**completo(), f'{PASTA_MOCK}/r1-detector-1440.json': 'detector: 0 achados'})
+        self.criar_com(mockup=MOCK)
+        self.recusa_iniciar(r'r(1|<N>)-detector-1440\.json')
+
+    def test_adicionar_recusa_sem_relatorio_sem_gravar(self):
+        self.criar()
+        self.sf('iniciar')
+        self.commitar(self.sem('relatorio.md'))
+        p = self.sf('adicionar', entrada=json.dumps(
+            {'mockup': MOCK, 'etapas': [{'id': '2', 'titulo': 't', 'tela': True}]}))
+        self.assertEqual(p.returncode, 1, p.stdout)
+        self.assertIn('relatorio.md', p.stderr)
+        e = self.estado()
+        self.assertEqual(len(e['etapas']), 1)
+        self.assertIsNone(e['mockup'])
+
+    # --- direções da etapa 19
+
+    def test_iniciar_recusa_sem_cada_direcao_dizendo_qual_falta(self):
+        self.criar_com(mockup=MOCK)
+        for nome in ('-a.html', '-b.html', '-a-375.png', '-a-1440.png', '-b-375.png', '-b-1440.png'):
+            with self.subTest(falta=nome):
+                self.git('rm', '-q', '-r', '--ignore-unmatch', 'docs')
+                self.commitar(self.sem(nome), msg=f'sem {nome}')
+                self.recusa_iniciar(r'(painel|<tela>)' + nome.replace('.', r'\.'))
+
+    def test_iniciar_recusa_direcoes_de_telas_diferentes(self):
+        so_a = {k: v for k, v in direcoes('painel').items() if '-a' in k}
+        so_b = {k: v for k, v in direcoes('lista').items() if '-b' in k}
+        self.commitar({MOCK: '<p>mock', **provas(PASTA_MOCK), **so_a, **so_b})
+        self.criar_com(mockup=MOCK)
+        self.recusa_iniciar(r'-b|-a')
+
+    def test_iniciar_recusa_direcoes_fora_do_git(self):
+        d = direcoes()
+        self.commitar(self.sem(*d))
+        self.ignorar(*d)
+        self.escrever(d)
+        self.criar_com(mockup=MOCK)
+        self.recusa_iniciar(r'(painel|<tela>)-a')
+
+    def test_adicionar_recusa_sem_direcao_b_sem_gravar(self):
+        self.criar()
+        self.sf('iniciar')
+        self.commitar(self.sem('-b.html'))
+        p = self.sf('adicionar', entrada=json.dumps(
+            {'mockup': MOCK, 'etapas': [{'id': '2', 'titulo': 't', 'tela': True}]}))
+        self.assertEqual(p.returncode, 1, p.stdout)
+        self.assertRegex(p.stderr, r'(painel|<tela>)-b\.html')
+        self.assertEqual(len(self.estado()['etapas']), 1)
+
+    def test_tela_existente_dispensa_as_direcoes(self):
+        self.commitar({MOCK: '<p>mock', **provas(PASTA_MOCK)})
+        self.criar_com(mockup=MOCK, tela_existente=True)
+        p = self.sf('iniciar')
+        self.assertEqual(p.returncode, 0, p.stderr)
+
+    def test_tela_existente_mantem_as_outras_provas(self):
+        self.commitar({MOCK: '<p>mock', **self.sem('relatorio.md', base=provas(PASTA_MOCK))})
+        self.criar_com(mockup=MOCK, tela_existente=True)
+        self.recusa_iniciar(r'relatorio\.md')
+
+    def test_tela_nova_sem_direcoes_recusa(self):
+        self.commitar({MOCK: '<p>mock', **provas(PASTA_MOCK)})
+        self.criar_com(mockup=MOCK)
+        self.recusa_iniciar(r'(painel|<tela>)-a\.html')
+
+
+class ConcluirTela(ComMockup):
+    """Etapa com tela só conclui com as provas da verificação dela em <pasta do mockup>/etapa-<id>/."""
+    ETAPA = PASTA_MOCK + '/etapa-1'
+
+    def setUp(self):
+        super().setUp()
+        self.commitar(completo())
+        self.criar_com(mockup=MOCK, etapas=[{'id': '1', 'titulo': 'tela', 'tela': True},
+                                            {'id': '2', 'titulo': 'sem tela'}])
+        p = self.sf('iniciar')
+        self.assertEqual(p.returncode, 0, p.stderr)
+
+    def verde(self, id_='1'):
+        self.commit('test_um')
+        self.assertEqual(self.sf('prova', 'vermelho', id_).returncode, 0)
+        self.commit('ok')
+        p = self.sf('prova', 'teste', id_)
+        self.assertEqual(p.returncode, 0, p.stderr)
+
+    def status(self, id_):
+        return next(x['status'] for x in self.estado()['etapas'] if x['id'] == id_)
+
+    def recusa_concluir(self, falta):
+        p = self.sf('concluir', '1')
+        self.assertEqual(p.returncode, 1, p.stdout)
+        self.assertRegex(p.stderr, falta)
+        self.assertEqual(self.status('1'), 'pendente')
+
+    def com_provas(self, arquivos):
+        self.commitar(arquivos, msg='provas da etapa')
+        p = self.sf('prova', 'teste', '1')
+        self.assertEqual(p.returncode, 0, p.stderr)
+
+    def test_verde_sem_provas_da_etapa_recusa(self):
+        self.verde()
+        self.recusa_concluir(r'etapa-1')
+
+    def test_verde_com_provas_da_etapa_conclui(self):
+        self.verde()
+        self.com_provas(provas(self.ETAPA))
+        p = self.sf('concluir', '1')
+        self.assertEqual(p.returncode, 0, p.stderr)
+        self.assertEqual(self.status('1'), 'feita')
+
+    def test_recusa_sem_cada_prova_da_etapa_dizendo_qual_falta(self):
+        self.verde()
+        faltas = {'relatorio.md': r'relatorio\.md', '-375.png': r'r(1|<N>)-375\.png',
+                  '-1440.png': r'r(1|<N>)-1440\.png',
+                  '-detector-375.json': r'r(1|<N>)-detector-375\.json',
+                  '-detector-1440.json': r'r(1|<N>)-detector-1440\.json'}
+        for nome, falta in faltas.items():
+            with self.subTest(falta=nome):
+                self.git('rm', '-q', '-r', '--ignore-unmatch', self.ETAPA)
+                self.com_provas(self.sem(nome, base=provas(self.ETAPA)))
+                self.recusa_concluir(falta)
+
+    def test_provas_da_etapa_fora_do_git_recusa(self):
+        self.verde()
+        p = provas(self.ETAPA)
+        self.ignorar(*p)
+        self.escrever(p)
+        self.recusa_concluir(r'relatorio\.md|etapa-1')
+
+    def test_provas_de_outra_etapa_nao_valem(self):
+        self.verde()
+        self.com_provas(provas(PASTA_MOCK + '/etapa-2'))
+        self.recusa_concluir(r'etapa-1')
+
+    def test_detector_da_etapa_que_nao_e_json_recusa(self):
+        self.verde()
+        self.com_provas({**provas(self.ETAPA), f'{self.ETAPA}/r1-detector-375.json': 'sem achados'})
+        self.recusa_concluir(r'r(1|<N>)-detector-375\.json')
+
+    def test_etapa_sem_tela_conclui_sem_provas(self):
+        self.verde('2')
+        p = self.sf('concluir', '2')
+        self.assertEqual(p.returncode, 0, p.stderr)
+        self.assertEqual(self.status('2'), 'feita')
 
 
 if __name__ == '__main__':
