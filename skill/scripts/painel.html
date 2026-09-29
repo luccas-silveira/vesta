@@ -166,8 +166,8 @@ body[data-estado=fase]{--acento:var(--verde)} body.perguntando{--acento:var(--ci
 
 .fases{list-style:none;display:grid;grid-template-columns:repeat(8,minmax(0,1fr));gap:4px;margin-top:4px}
 @media (max-width:700px){.fases{grid-template-columns:repeat(4,minmax(0,1fr))}}
-.fases li{padding:8px 8px 7px;box-shadow:inset 0 0 0 1px var(--traco);min-width:0}
-.fases b{display:block;font:600 12px/1 var(--f-display);letter-spacing:.12em;text-transform:uppercase;color:var(--tinta-2)}
+.fases li{padding:8px 6px 7px;box-shadow:inset 0 0 0 1px var(--traco);min-width:0}
+.fases b{display:block;font:600 12px/1 var(--f-display);letter-spacing:.08em;overflow:hidden;text-overflow:ellipsis;text-transform:uppercase;color:var(--tinta-2)}
 .fases .pendente{box-shadow:inset 0 0 0 1px var(--traco);background:none} .fases .pendente b{font-weight:400}
 .fases .micro{display:block;margin-top:5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .fases .feita{box-shadow:inset 0 0 0 1px var(--traco-forte)} .fases .feita b{color:var(--tinta)} .fases .feita b::before{content:'✓ ';color:var(--acento)}
@@ -187,9 +187,9 @@ body[data-estado=fase]{--acento:var(--verde)} body.perguntando{--acento:var(--ci
 .hist .msg{font:400 14px/1.55 var(--f-leitura);color:var(--tinta-2);max-width:62ch}
 .hist .pend .r{color:var(--ciano)}
 .hist .meta-h{display:flex;gap:8px;align-items:center;margin-bottom:4px}
-.ativ li{display:grid;grid-template-columns:44px 64px minmax(0,1fr);gap:8px;padding:6px 0;border-bottom:1px solid var(--traco);align-items:baseline}
+.ativ li{display:grid;grid-template-columns:44px 104px minmax(0,1fr);gap:8px;padding:6px 0;border-bottom:1px solid var(--traco);align-items:baseline}
 .ativ .h{font:400 11px var(--f-micro);color:var(--tinta-2);font-variant-numeric:tabular-nums}
-.ativ .f{font:500 11px var(--f-micro);color:var(--tinta-2);letter-spacing:.04em}
+.ativ .f{font:500 11px var(--f-micro);color:var(--tinta-2);letter-spacing:.04em;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .ativ .a{font:400 12px/1.4 var(--f-micro);color:var(--tinta);overflow-wrap:anywhere}
 .ativ li:first-child .f{color:var(--acento)}
 .aviso.ciano{box-shadow:inset 0 0 0 1px var(--tinta-3);color:var(--tinta-2)}
@@ -499,7 +499,7 @@ function rodada(r){
     h.append(li)});
   const a=$('ativ');a.innerHTML='';
   r.atividade.forEach(x=>{const li=document.createElement('li');
-    li.innerHTML=`<span class="h">${esc(x.hora)}</span><span class="f">${esc(x.ferramenta)}</span><span class="a">${esc(x.alvo)}</span>`;a.append(li)});
+    li.innerHTML=`<span class="h">${esc(x.hora)}</span><span class="f" title="${esc(x.ferramenta)}">${esc(x.ferramenta)}</span><span class="a">${esc(x.alvo)}</span>`;a.append(li)});
 }
 let piscar=false,atual=null;
 function pergunta(ps){
