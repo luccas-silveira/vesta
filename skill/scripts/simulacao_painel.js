@@ -47,9 +47,18 @@ ctx.window=ctx;vm.createContext(ctx);
 vm.runInContext(script,ctx);
 const $=id=>document.getElementById(id);
 if(cenario.modo==='render'){
-  vm.runInContext(`D=${JSON.stringify(cenario.D)};render()`,ctx);
-  const out={raf:vm.runInContext('typeof requestAnimationFrame',ctx),caf:vm.runInContext('typeof cancelAnimationFrame',ctx),ids:{}};
-  for(const id of cenario.ids){const c=$(id).children;out.ids[id]={n:c.length,filhos:c.map(x=>x.outer)}}
+  const marca=e=>e.children.forEach(c=>{c._visto=true;marca(c)});
+  const out={passos:[],ids:{}};
+  (cenario.passos||[cenario.D]).forEach((D,i)=>{
+    if(i)cenario.ids.forEach(id=>marca($(id)));
+    vm.runInContext(`D=${JSON.stringify(D)};render()`,ctx);
+    const p={};for(const id of cenario.ids){const c=$(id).children;p[id]={n:c.length,mesmos:c.filter(x=>x._visto).length,filhos:c.map(x=>x.outer)}}
+    out.passos.push(p);
+  });
+  for(const id of cenario.ids){const {n,filhos}=out.passos.at(-1)[id];out.ids[id]={n,filhos}}
+  out.raf=vm.runInContext('typeof requestAnimationFrame',ctx);out.caf=vm.runInContext('typeof cancelAnimationFrame',ctx);
+  out.avaliado=(cenario.avaliar||[]).map(x=>vm.runInContext(`JSON.stringify(${x})`,ctx)).map(x=>x===undefined?null:JSON.parse(x));
+  out.pendentes=vm.runInContext(`typeof vivos!=='undefined'?vivos.size:null`,ctx);
   process.stdout.write(JSON.stringify(out));
 }else{
 vm.runInContext(`D=${JSON.stringify(cenario.D)};escolhida=${JSON.stringify(cenario.escolhida)};aberto=${JSON.stringify(cenario.aberto)};rodada(D.rodada)`,ctx);
