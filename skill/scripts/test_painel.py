@@ -336,7 +336,7 @@ class Sessao(SessaoBase):
             'duracao_s': 100, 'requests': 2, 'entrada': [115, 201], 'saida': 10,
             'ferramentas': [['Read', 3], ['Bash', 1], ['graft_find_code', 1]],
             'contexto': 201, 'janela': 200000,
-            'ritmo': [1] + [0] * 46 + [1]})
+            'ritmo': [0, 0, 1] + [0] * 44 + [1]})
 
     def test_mesmo_request_id_conta_uma_request_com_o_ultimo_usage(self):
         self.jsonl('s.jsonl', [
