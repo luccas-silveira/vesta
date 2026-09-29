@@ -11,8 +11,12 @@ Anuncie uma vez, no começo: "Usando a Vesta: spec, pesquisa, grill, mockup, pla
 
 Depois disso, nunca mais fale de fase. Não anuncie entrada, saída, conclusão nem próximo
 passo — o usuário vê as ferramentas rodando e não precisa de legenda. Entre uma fase e
-outra você não escreve nada; volta a escrever quando tiver pergunta para ele ou resultado
-na mão.
+outra você não escreve nada; volta a escrever quando tiver pergunta para ele, sempre pelo menu, ou
+resultado na mão.
+
+Toda pergunta ao usuário vai pelo `AskUserQuestion`: a opção recomendada vem em primeiro,
+marcada "(Recomendado)", e a resposta livre que ele digitar em "Outro" é aceita como qualquer
+opção.
 
 A fase 1 substitui o `superpowers:brainstorming`: não invoque aquela skill, nem o
 `writing-plans` nem o `executing-plans` do superpowers, dentro deste fluxo.
@@ -65,15 +69,15 @@ motivou.
 ## Fase 4 — Mockup e plano
 
 A spec cria ou muda algo visível: leia `mockup.md` nesta pasta e siga. Termina quando o
-usuário aprova o mockup.
+usuário aprova o mockup no menu.
 
 Depois, ou direto quando não há tela, leia `plano.md` e siga, sobre a spec **revisada**, não a
-original. Termina na parada 1: o usuário aprova o plano.
+original. Termina na parada 1: o usuário aprova o plano pelo menu.
 
 ## Fase 5 — Execução
 
 Depois da aprovação, leia `execucao.md` nesta pasta e siga. Um hook não deixa você parar
-enquanto houver etapa sem prova. Termina na parada 2: o usuário testa a feature.
+enquanto houver etapa sem prova. Termina na parada 2: o usuário testa a feature e decide pelo menu.
 
 ## Retomada
 
@@ -85,6 +89,9 @@ próxima sessão do projeto. `/vesta-retomar` passa a execução para a sessão 
 
 Cinco linhas cada. Parada 1: o que o plano vai fazer, o que trava, o que decidir agora.
 Parada 2: o que ficou pronto, o que travou, como testar.
+
+Logo depois da mensagem, a decisão da parada vai num menu do `AskUserQuestion`: aprovar o
+plano na parada 1; aprovar a feature ou pedir ajuste na parada 2.
 
 Não repita o que está nos arquivos. Cite só o caminho que o usuário abre em seguida.
 

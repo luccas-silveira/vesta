@@ -1,15 +1,19 @@
 # Fase 3 — Grill
 
-Não anuncie a entrada nesta fase. Sua primeira mensagem aqui já é a primeira pergunta.
+Não anuncie a entrada nesta fase. Sua primeira mensagem aqui já é a primeira pergunta, num menu.
+
+Toda pergunta ao usuário vai pelo `AskUserQuestion`: a opção recomendada vem em primeiro,
+marcada "(Recomendado)", e a resposta livre que ele digitar em "Outro" é aceita como qualquer
+opção.
 
 ## O interrogatório
 
 Interrogue o usuário implacavelmente sobre cada aspecto da spec até chegarem a
 entendimento compartilhado. Percorra cada galho da árvore de decisão, resolvendo as
 dependências entre decisões uma a uma. Para cada pergunta, forneça sua resposta
-recomendada.
+recomendada como a primeira opção do menu.
 
-Faça as perguntas **uma de cada vez**, esperando resposta antes de continuar.
+Faça as perguntas **uma de cada vez**, cada uma num menu, esperando resposta antes de continuar.
 
 Se uma pergunta pode ser respondida explorando o codebase, explore o codebase em vez de
 perguntar.
@@ -34,7 +38,7 @@ Certo:
 > mexer na lista enquanto ela roda. O projeto já tem um jeito de exportar que não tem esse
 > problema (`src/leads/export.ts:88`). Uso o que já existe?
 >
-> Recomendo que sim.
+> Menu: **Sim, uso o que já existe (Recomendado)** · Não, sigo com offset.
 
 Pergunta que o usuário só consegue responder lendo código é pergunta mal feita — ou você
 explora o código e responde sozinho, ou reescreve até ele conseguir decidir.
@@ -58,7 +62,7 @@ decisão não escrita é decisão que evapora e vira retrabalho no plano.
 
 ## Fim
 
-Encerra quando: fila vazia **e** o usuário confirma que não há galho aberto.
+Encerra quando: fila vazia **e** o usuário confirma pelo menu que não há galho aberto.
 
 Anexe na spec:
 

@@ -7,6 +7,10 @@ Entrada: a spec revisada pelo grill. Saída: o plano em
 `docs/vesta/plans/YYYY-MM-DD-<feature>.md`, commitado, e o estado da execução criado,
 esperando aprovação.
 
+Toda pergunta ao usuário vai pelo `AskUserQuestion`: a opção recomendada vem em primeiro,
+marcada "(Recomendado)", e a resposta livre que ele digitar em "Outro" é aceita como qualquer
+opção.
+
 ## O plano é uma lista de etapas
 
 Etapa é o menor pedaço que carrega a própria prova e que um revisor poderia rejeitar sozinho.
@@ -68,8 +72,10 @@ esperando aprovação: a trava ainda não age.
 Mensagem ao usuário, cinco linhas: o que o plano vai fazer, quantas etapas, o que trava, o
 que decidir agora, o caminho do plano. Não repita o que está nos arquivos.
 
+Logo depois, a aprovação vai num menu do `AskUserQuestion`: aprovar o plano ou pedir mudança.
+
 Árvore com mudanças que não são do plano: diga na parada 1. A execução não começa com elas, e
-só o usuário decide entre commit e stash.
+só o usuário decide entre commit e stash, num menu.
 
 Aprovado: leia `execucao.md` e siga.
 

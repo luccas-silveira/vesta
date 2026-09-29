@@ -3,6 +3,10 @@
 Não anuncie a entrada nesta fase. Entre as duas paradas você não escreve nada para o usuário:
 ele não está olhando, e o hook não deixa você parar antes do fim.
 
+Toda pergunta ao usuário vai pelo `AskUserQuestion`: a opção recomendada vem em primeiro,
+marcada "(Recomendado)", e a resposta livre que ele digitar em "Outro" é aceita como qualquer
+opção.
+
 Toda prova passa pelo script, sempre chamado pelo caminho completo, `python3 ~/.claude/skills/vesta/scripts/vesta.py`: cada
 chamada de Bash é um shell novo, e é esse caminho no comando que liga a trava a esta sessão.
 Você nunca edita o estado à mão.
@@ -95,10 +99,13 @@ Depois de concluir a última etapa, ou quando uma travar, escreva ao usuário em
 que ficou pronto, o que travou e por quê (a linha decisiva da última saída), como testar a
 feature.
 
+Logo depois, a decisão vai num menu do `AskUserQuestion`: aprovar a feature, pedir ajuste ou, com
+etapa travada, insistir.
+
 Etapa travada e o usuário quer insistir: `/vesta-retomar`, que destrava a etapa e zera as
 tentativas. `adicionar` recusa enquanto houver etapa travada.
 
-Ajuste pedido: acrescente as etapas no plano, commite, e registre:
+Ajuste pedido no menu: acrescente as etapas no plano, commite, e registre:
 
 ```bash
 python3 ~/.claude/skills/vesta/scripts/vesta.py adicionar <<'JSON'
@@ -112,4 +119,4 @@ recusa etapa de tela.
 
 Depois volte ao ciclo de etapa.
 
-Usuário aprovou a feature: `python3 ~/.claude/skills/vesta/scripts/vesta.py fechar`.
+Usuário aprovou a feature no menu: `python3 ~/.claude/skills/vesta/scripts/vesta.py fechar`.

@@ -3,6 +3,10 @@
 Não anuncie a entrada nesta fase. Você volta a escrever quando o mockup estiver aberto no
 navegador, esperando aprovação.
 
+Toda pergunta ao usuário vai pelo `AskUserQuestion`: a opção recomendada vem em primeiro,
+marcada "(Recomendado)", e a resposta livre que ele digitar em "Outro" é aceita como qualquer
+opção.
+
 Roda sempre que a spec cria ou muda algo visível: página, tela, componente, estilo, e-mail,
 formulário. Sem nada visível, pule direto para o `plano.md`. Na dúvida, faça o mockup.
 
@@ -25,12 +29,12 @@ fase acrescenta só o que está abaixo.
 As referências vêm do inspo. Use as que estão no dossiê. Pesquisa pulada ou dossiê sem
 referência visual: chame agora o `recommend` do MCP inspo com o brief da spec.
 
-Ofereça ao usuário a bifurcação da vesta-interface: com questionário (perguntas de design com a
+Ofereça ao usuário, pelo menu, a bifurcação da vesta-interface: com questionário (perguntas de design com a
 ferramenta `AskUserQuestion`, uma pergunta por chamada, a opção recomendada em primeiro lugar e
 marcada "(Recomendado)", e a resposta livre ("Outro") aceita) ou direto (você deduz as respostas e mostra junto do
 mockup). Padrão: tela nova com questionário, tela que já existe direto.
 
-O texto é o da spec. Faltando texto, pergunte: a vesta-interface não inventa copy, e o mockup
+O texto é o da spec. Faltando texto, pergunte pelo menu: a vesta-interface não inventa copy, e o mockup
 com texto de mentira esconde problema de layout.
 
 Tela que já existe e está mudando: o mockup reproduz a tela atual com a mudança aplicada, no
@@ -77,9 +81,11 @@ Commite o mockup e abra: `open docs/vesta/mockups/<pasta>/index.html`.
 
 Cinco linhas: o que o mockup mostra, a escolha de design que mais pesa, a diferença entre as
 duas direções, o que a autoverificação corrigiu, o caminho da página (e a rota, no React).
-Pare até o sim explícito.
 
-Mudança pedida: edite, commite, abra de novo e espere.
+Logo depois, a aprovação vai num menu do `AskUserQuestion`: aprovar o mockup ou pedir mudança.
+Pare até o sim explícito no menu.
+
+Mudança pedida: edite, commite, abra de novo e volte ao menu de aprovação.
 
 Aprovado: leia `plano.md` e siga. O caminho do mockup vai no cabeçalho do plano e no
 `criar`: sem ele, a execução de plano com tela não começa.
