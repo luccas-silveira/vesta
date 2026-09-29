@@ -53,8 +53,6 @@ main{position:relative}
 /* moldura */
 .topo{position:relative;z-index:1;display:flex;align-items:flex-end;gap:24px;padding:18px 28px 10px;flex-wrap:wrap}
 .topo h1{font:300 30px/1 var(--f-display);letter-spacing:.14em;text-transform:uppercase}
-.topo .dados{display:flex;gap:22px;margin-left:auto;flex-wrap:wrap}
-.topo .dados b{display:block;font:500 13px var(--f-micro);color:var(--tinta);letter-spacing:.02em}
 .linha-topo{margin:0 28px;position:relative;z-index:1}
 
 main{position:relative;z-index:1;display:grid;grid-template-columns:minmax(200px,250px) minmax(0,1fr) minmax(200px,250px);gap:36px;padding:26px 28px}
@@ -75,8 +73,7 @@ svg text{font:500 8.5px var(--f-micro);fill:var(--tinta-3);letter-spacing:.06em}
 
 /* centro: o estado em letra grande, à maneira de SERVICE / CLEAR */
 .centro{min-width:0}
-.estado{display:grid;grid-template-columns:auto minmax(0,1fr);gap:6px 20px;align-items:center}
-.selo{width:64px;height:64px;grid-row:span 2}
+.estado{display:grid;gap:6px}
 .estado h2{font:300 clamp(40px,6vw,76px)/.9 var(--f-display);letter-spacing:.06em;text-transform:uppercase;overflow-wrap:anywhere}
 .estado .sub{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
 .estado .sub .desc{color:var(--acento);font:500 11px var(--f-micro);letter-spacing:.1em;text-transform:uppercase}
@@ -231,10 +228,6 @@ body[data-estado=fase]{--acento:var(--verde)} body.perguntando{--acento:var(--ci
 
 <header class="topo">
   <div><div class="micro">projeto</div><h1 id="projeto">—</h1><div class="micro" id="caminho" style="margin-top:6px;text-transform:none">—</div></div>
-  <div class="dados">
-    <div class="micro">plano<b id="plano-nome">—</b></div>
-    <div class="micro">sincronia<b><span class="vivo" style="color:var(--acento)">●</span> <span id="idade">—</span></b></div>
-  </div>
 </header>
 <div class="linha-topo regua"></div>
 
@@ -271,7 +264,6 @@ body[data-estado=fase]{--acento:var(--verde)} body.perguntando{--acento:var(--ci
 
   <div class="centro">
     <section class="estado">
-      <svg class="selo" viewBox="0 0 64 64" id="selo"></svg>
       <h2 id="palavra">—</h2>
       <div class="sub"><span class="chip" id="chip">—</span><span class="desc" id="desc"></span><span class="micro" id="obs"></span></div>
     </section>
@@ -383,26 +375,15 @@ const $=id=>document.getElementById(id);
 const esc=s=>String(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'})[c]);
 const k=n=>n>=1000?(n/1000).toFixed(n>=100000?0:1)+'k':String(n);
 const E={
-  rodando:{p:'Rodando',d:'em execução',selo:'seta'},
-  plano:{p:'Aguardando',d:'aprovação pendente',selo:'ponto'},
-  pausada:{p:'Pausada',d:'pausada',selo:'pausa'},
-  travada:{p:'Travada',d:'limite de tentativas',selo:'alerta'},
-  concluida:{p:'Clear',d:'todas com prova',selo:'ok'},
-  vazio:{p:'Em espera',d:'nenhuma execução',selo:'ponto'},
-  ilegivel:{p:'Falha',d:'estado ilegível',selo:'alerta'},
-  fase:{p:'—',d:'antes da execução',selo:'seta'},
+  rodando:{p:'Rodando',d:'em execução'},
+  plano:{p:'Aguardando',d:'aprovação pendente'},
+  pausada:{p:'Pausada',d:'pausada'},
+  travada:{p:'Travada',d:'limite de tentativas'},
+  concluida:{p:'Clear',d:'todas com prova'},
+  vazio:{p:'Em espera',d:'nenhuma execução'},
+  ilegivel:{p:'Falha',d:'estado ilegível'},
+  fase:{p:'—',d:'antes da execução'},
 };
-function selo(tipo){
-  const g=$('selo');g.innerHTML='';
-  if(tipo==='alerta'){g.append(el('polygon',{points:'32,4 60,54 4,54',class:'s-acento','stroke-width':1.5}));g.append(el('polygon',{points:'32,14 52,50 12,50',class:'f-acento',opacity:.18}));g.append(el('rect',{x:30.5,y:24,width:3,height:15,class:'f-acento'}));g.append(el('rect',{x:30.5,y:43,width:3,height:3,class:'f-acento'}));return}
-  g.append(el('circle',{cx:32,cy:32,r:29,class:'s-acento','stroke-width':1}));
-  g.append(el('circle',{cx:32,cy:32,r:24,class:'f-acento',opacity:.14}));
-  for(let i=0;i<24;i++){const a=i/24*2*Math.PI;g.append(el('line',{x1:32+29*Math.sin(a),y1:32-29*Math.cos(a),x2:32+31.5*Math.sin(a),y2:32-31.5*Math.cos(a),class:'s-acento','stroke-width':1}))}
-  if(tipo==='ok')g.append(el('path',{d:'M21 33 L29 40 L44 25',class:'s-acento','stroke-width':3,'stroke-linecap':'square'}));
-  if(tipo==='seta')g.append(el('path',{d:'M26 21 L42 32 L26 43 Z',class:'f-acento'}));
-  if(tipo==='pausa'){g.append(el('rect',{x:24,y:22,width:5,height:20,class:'f-acento'}));g.append(el('rect',{x:35,y:22,width:5,height:20,class:'f-acento'}))}
-  if(tipo==='ponto')g.append(el('circle',{cx:32,cy:32,r:5,class:'f-acento'}));
-}
 const pad=n=>String(n).padStart(2,'0');
 function etapas(e,tipo){
   const ol=$('etapas');ol.innerHTML='';
@@ -519,8 +500,7 @@ function render(){
   document.querySelectorAll('[data-so]').forEach(x=>x.hidden=!x.dataset.so.split(' ').includes(tipo));
   document.querySelectorAll('[data-nao]').forEach(x=>x.hidden=x.dataset.nao.split(' ').includes(tipo));
   $('projeto').textContent=D.projeto;$('caminho').textContent=D.caminho;aba(tipo,e);
-  $('plano-nome').textContent=e?e.plano.split('/').pop():'—';
-  $('palavra').textContent=tipo==='fase'?D.momento.fase:m.p;$('desc').textContent=m.d;$('obs').textContent=D.momento.texto;selo(m.selo);
+  $('palavra').textContent=tipo==='fase'?D.momento.fase:m.p;$('desc').textContent=m.d;$('obs').textContent=D.momento.texto;
   const pend=e&&e.etapas.find(x=>x.status!=='feita');
   $('chip').textContent=tipo==='fase'?'Rodada':tipo==='plano'?'Plano':tipo==='concluida'?`${e.etapas.length} / ${e.etapas.length}`:pend?'Etapa '+pad(pend.id):tipo==='ilegivel'?'Estado':'Livre';
   if(D.erro)$('erro').textContent='Estado ilegível · '+D.erro+' · o resto do painel continua valendo';
@@ -662,7 +642,6 @@ $('pergunta').onsubmit=async ev=>{ev.preventDefault();
 setInterval(()=>{if(D&&(D.perguntas||[]).length){piscar=!piscar;aba(D.momento.tipo,D.estado)}},900);
 
 async function puxar(){try{const r=await fetch('/estado');if(r.ok){D=await r.json();visto=Date.now();render()}}catch(_){}}
-setInterval(()=>{$('idade').textContent=visto?`há ${Math.round((Date.now()-visto)/1000)} s`:'—'},1000);
 document.querySelectorAll('.trilha button').forEach(b=>b.onclick=()=>abrir(b.dataset.doc));
 puxar();setInterval(puxar,3000);
 

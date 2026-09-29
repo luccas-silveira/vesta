@@ -745,7 +745,7 @@ class Pagina(unittest.TestCase):
             self.h = f.read()
 
     def test_pontos_de_montagem(self):
-        for i in ('palavra', 'selo', 'cheio', 'etapas', 'leitor', 'arco', 'pontos', 'colunas',
+        for i in ('palavra', 'cheio', 'etapas', 'leitor', 'arco', 'pontos', 'colunas',
                   'ferr', 'aviso-sessao'):
             with self.subTest(i):
                 self.assertRegex(self.h, rf'\bid\s*=\s*["\']?{re.escape(i)}["\'\s>]')
