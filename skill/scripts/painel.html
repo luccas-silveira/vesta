@@ -424,9 +424,11 @@ function pontos(d){
   const g=$('pontos'),W=190,H=108,max=Math.max(1,...d)*1.1,xs=[];
   [0,1/3,2/3,1].forEach((f,i)=>{const y=H-f*H;xs.push(com(el('line',{x1:0,x2:W,y1:y,y2:y,class:'s-traco','stroke-dasharray':'1 3'}),{k:'g'+i}),com(el('text',{x:W+4,y:y+3},k(Math.round(f*max))),{k:'e'+i}))});
   let seed=7;const rnd=()=>(seed=(seed*9301+49297)%233280)/233280;
+  // cada coluna é um grupo: nasce achatada na base e sobe inteira, uma animação por request
   d.forEach((v,i)=>{const x=d.length>1?i/(d.length-1)*W:W,top=H-v/max*H;
-    for(let j=0;j<14;j++){const y=top+Math.pow(rnd(),1.8)*(H-top);xs.push(com(el('circle',{cx:x+(rnd()-.5)*2.5,cy:y,r:.75,class:'f-tinta',opacity:.25+.6*(1-(y-top)/(H-top||1))}),{k:`p${i}-${j}`,de:{cy:H}}))}
-    xs.push(com(el('circle',{cx:x,cy:top,r:1.1,class:'f-acento'}),{k:'c'+i,de:{cy:H}}));
+    const c=com(el('g',{transform:`translate(${x} 0) scale(1 1)`}),{k:'col'+i,de:{transform:`translate(${x} ${H}) scale(1 0)`}});
+    for(let j=0;j<14;j++){const y=top+Math.pow(rnd(),1.8)*(H-top);c.append(el('circle',{cx:(rnd()-.5)*2.5,cy:y,r:.75,class:'f-tinta',opacity:.25+.6*(1-(y-top)/(H-top||1))}))}
+    c.append(el('circle',{cx:0,cy:top,r:1.1,class:'f-acento'}));xs.push(c);
   });
   xs.push(com(el('line',{x1:W,x2:W,y1:0,y2:H,class:'s-acento','stroke-dasharray':'2 2'}),{k:'agora'}));pintar(g,xs);
   escreve($('pico'),'pico '+k(Math.max(...d)));escreve($('req-fim'),'req '+String(d.length).padStart(3,'0'));
