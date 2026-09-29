@@ -302,7 +302,7 @@ class SessaoBase(Base):
         p.start()
         self.addCleanup(p.stop)
         self.proj = os.path.join(os.path.realpath(self.home.name), '.claude', 'projects',
-                                 self.r.replace('/', '-').replace('.', '-'))
+                                 re.sub(r'[^A-Za-z0-9]', '-', self.r))
 
     def jsonl(self, nome, linhas, mtime=None):
         os.makedirs(self.proj, exist_ok=True)
@@ -316,10 +316,10 @@ class SessaoBase(Base):
 
 
 class PastaSessoes(SessaoBase):
-    def test_home_do_ambiente_e_raiz_com_barra_e_ponto_trocados(self):
+    def test_home_do_ambiente_e_raiz_com_tudo_que_nao_e_letra_ou_digito_trocado(self):
         h = os.path.realpath(self.home.name)
         self.assertEqual(painel.pasta_sessoes('/a/b.c/d_e'),
-                         os.path.join(h, '.claude', 'projects', '-a-b-c-d_e'))
+                         os.path.join(h, '.claude', 'projects', '-a-b-c-d-e'))
 
 
 class Sessao(SessaoBase):

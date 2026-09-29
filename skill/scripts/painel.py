@@ -102,8 +102,8 @@ def doc_seguro(r, rel):
 
 
 def pasta_sessoes(r):
-    return os.path.join(os.environ['HOME'], '.claude', 'projects',
-                        r.replace('/', '-').replace('.', '-'))
+    # o Claude Code troca por hífen tudo que não é letra ou dígito, sublinhado inclusive
+    return os.path.join(os.environ['HOME'], '.claude', 'projects', re.sub(r'[^A-Za-z0-9]', '-', r))
 
 
 def _instante(ts):
