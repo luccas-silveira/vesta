@@ -459,8 +459,8 @@ def achar(r):
     return None
 
 
-def subir(r):
-    if not (os.path.isdir(os.path.join(r, 'docs', 'vesta'))
+def subir(r, forcar=False):
+    if not forcar and not (os.path.isdir(os.path.join(r, 'docs', 'vesta'))
             or os.path.isdir(os.path.join(r, '.claude', 'vesta'))):
         return None
     base = porta(r)

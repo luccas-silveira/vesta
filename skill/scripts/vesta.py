@@ -639,12 +639,34 @@ def hook_menu(entrada):
                                                     'answers': texto_das(answers)}}}
 
 
+def hook_ativacao(entrada):
+    """PreToolUse de Skill: ativar a `vesta` sobe o painel da raiz, mesmo sem Vesta no projeto,
+    e abre a página se ela não estiver aberta. Nunca decide a permissão da ferramenta."""
+    if (entrada.get('tool_input') or {}).get('skill') != 'vesta':
+        return None
+    import painel
+    r = raiz(entrada.get('cwd'))
+    try:
+        url = painel.achar(r)
+        if url and pedir(f'{url}/aberto').get('aberto') is True:
+            return None
+    except Exception:
+        pass
+    url = painel.subir(r, forcar=True)
+    if url:
+        try:
+            subprocess.run([os.environ.get('VESTA_ABRIR', 'open'), url], capture_output=True, timeout=5)
+        except Exception:
+            pass
+    return None
+
+
 COMANDOS = {'criar': cmd_criar, 'iniciar': cmd_iniciar, 'mostrar': cmd_mostrar,
             'prova': cmd_prova, 'concluir': cmd_concluir, 'retomar': cmd_retomar,
             'pausar': cmd_pausar, 'adicionar': cmd_adicionar, 'fechar': cmd_fechar,
             'guarda': cmd_guarda, 'painel': cmd_painel, 'aberto': cmd_aberto}
 HOOKS = {'hook-parada': hook_parada, 'hook-inicio': hook_inicio, 'hook-adocao': hook_adocao,
-         'hook-menu': hook_menu}
+         'hook-menu': hook_menu, 'hook-ativacao': hook_ativacao}
 
 
 def main(argv):
