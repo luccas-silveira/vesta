@@ -2040,17 +2040,27 @@ class MovimentoNoNavegador(unittest.TestCase):
                 self.assertEqual(p2[g]['mesmos'], p2[g]['n'],
                                  f'#{g}: {p2[g]["n"] - p2[g]["mesmos"]} filhos recriados na segunda leitura')
 
-    def test_request_nova_acrescenta_15_circulos_e_mantem_os_antigos(self):
+    def test_request_nova_acrescenta_uma_coluna_de_15_pontos_e_mantem_as_antigas(self):
         d2 = self.D()
         d2['sessao']['entrada'] = ENTRADA + [60_000]
         d2['sessao']['requests'] += 1
         p1, p2 = self.passos(self.rodar([self.D(), d2], ids=['pontos']), 'pontos')
-        circ = lambda p: [f for f in p['filhos'] if f.startswith('<circle')]
-        self.assertEqual(len(circ(p2)) - len(circ(p1)), 15)
-        self.assertEqual(p2['n'], p1['n'] + 15)
+        grupos = lambda p: [f for f in p['filhos'] if f.startswith('<g')]
+        self.assertEqual(len(grupos(p2)) - len(grupos(p1)), 1, 'a request nova não virou um <g> a mais')
+        self.assertEqual(p2['n'], p1['n'] + 1)
         self.assertEqual(p2['mesmos'], p1['n'], 'filhos antigos de #pontos foram recriados')
-        cab = [f for f in circ(p2) if _attr('r', f) == '1.1' and _num('cx', f) == 190]
-        self.assertEqual(len(cab), 1, 'círculo de cabeça da coluna nova não encontrado')
+        novo = [g for g in grupos(p2) if (_nums(_attr('transform', g)) or [None])[0] is not None
+                and abs(_nums(_attr('transform', g))[0] - 190) < 1e-6]
+        self.assertEqual(len(novo), 1, 'grupo da coluna nova (translate 190) não encontrado')
+        g = novo[0]
+        self.assertRegex(_attr('transform', g) or '', r'^translate\(\S+ \S+\) scale\(\S+ \S+\)$')
+        for a, b in zip(_nums(_attr('transform', g)), [190, 0, 1, 1]):
+            self.assertAlmostEqual(a, b, places=6, msg=_attr('transform', g))
+        circ = re.findall(r'<circle\b[^>]*>', g)
+        self.assertEqual(len(circ), 15, 'o grupo novo não tem 15 pontos')
+        cab = [c for c in circ if _attr('r', c) == '1.1']
+        self.assertEqual(len(cab), 1, 'cabeça da coluna nova não encontrada')
+        self.assertAlmostEqual(_num('cx', cab[0]), 0, places=6)
         mx = max(ENTRADA + [60_000]) * 1.1
         self.assertAlmostEqual(_num('cy', cab[0]), 108 - 60_000 / mx * 108, places=6,
                                msg='o cy da cabeça nova não chegou ao valor final')
