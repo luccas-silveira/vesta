@@ -661,8 +661,8 @@ def hook_ativacao(entrada):
     return None
 
 
-def atualizar(repo):
-    """Avança o clone da Vesta até o remoto e roda o install.sh. None: nada a dizer (em dia,
+def atualizar(repo, nome='vesta'):
+    """Avança o clone até o remoto e roda o install.sh dele. None: nada a dizer (em dia,
     sem repositório, sem rede); texto: o que o agente repassa na parada."""
     if not repo or git(repo, 'rev-parse', '--abbrev-ref', '@{u}') is None:
         return None
@@ -673,7 +673,7 @@ def atualizar(repo):
         return None
     if p.returncode or git(repo, 'rev-list', '--count', 'HEAD..@{u}') in (None, '0'):
         return None
-    nao = f'vesta: há versão nova no repositório, mas não atualizei: o clone em {repo} '
+    nao = f'{nome}: há versão nova no repositório, mas não atualizei: o clone em {repo} '
     if git(repo, 'status', '--porcelain', '--untracked-files=no'):
         return nao + 'tem mudanças locais.'
     if git(repo, 'rev-list', '--count', '@{u}..HEAD') != '0':
@@ -685,13 +685,19 @@ def atualizar(repo):
     if os.path.exists(instalar):
         p = subprocess.run([instalar], cwd=repo, capture_output=True, text=True)
         if p.returncode:
-            return (f'vesta: atualizada para {novo}, mas o install.sh falhou: '
+            return (f'{nome}: atualizada para {novo}, mas o install.sh falhou: '
                     f'{cauda(p.stderr or p.stdout, 3).strip()}')
-    return f'vesta: atualizada para {novo}. Reinicie a sessão do Claude Code para a nova versão valer.'
+    return f'{nome}: atualizada para {novo}. Reinicie a sessão do Claude Code para a nova versão valer.'
 
 
 def cmd_atualizar(r, args):
-    return atualizar(git(os.path.dirname(os.path.realpath(__file__)), 'rev-parse', '--show-toplevel'))
+    # a vesta-interface anda junto: o clone dela é o destino do link em CLAUDE_HOME/skills
+    home = os.environ.get('CLAUDE_HOME') or os.path.join(os.path.expanduser('~'), '.claude')
+    link = os.path.join(home, 'skills', 'vesta-interface')
+    inter = git(os.path.realpath(link), 'rev-parse', '--show-toplevel') if os.path.isdir(link) else None
+    ditos = [atualizar(git(os.path.dirname(os.path.realpath(__file__)), 'rev-parse', '--show-toplevel')),
+             atualizar(inter, 'vesta-interface')]
+    return '\n'.join(d for d in ditos if d) or None
 
 
 COMANDOS = {'criar': cmd_criar, 'iniciar': cmd_iniciar, 'mostrar': cmd_mostrar,

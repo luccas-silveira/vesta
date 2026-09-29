@@ -1278,7 +1278,8 @@ class Atualizar(unittest.TestCase):
 
     def atualizar(self, pasta=None):
         p = subprocess.run(['python3', os.path.join(pasta or self.clone, 'skill/scripts/vesta.py'),
-                            'atualizar'], cwd=self.tmp.name, env=ENV, capture_output=True, text=True)
+                            'atualizar'], cwd=self.tmp.name, capture_output=True, text=True,
+                           env={**ENV, 'CLAUDE_HOME': os.path.join(self.tmp.name, 'claude')})
         self.assertEqual(p.returncode, 0, p.stderr)
         return p.stdout
 
@@ -1315,6 +1316,24 @@ class Atualizar(unittest.TestCase):
         with open(SCRIPT) as f, open(os.path.join(solta, 'skill/scripts/vesta.py'), 'w') as g:
             g.write(f.read())
         self.assertEqual(self.atualizar(solta), '')
+
+    def test_interface_ligada_tambem_se_atualiza(self):
+        # o clone da vesta-interface é o destino do link em CLAUDE_HOME/skills
+        inter = os.path.join(self.tmp.name, 'inter')
+        subprocess.run(['git', 'clone', '-q', self.remoto, inter], check=True)
+        skills = os.path.join(self.tmp.name, 'claude', 'skills')
+        os.makedirs(skills)
+        os.symlink(inter, os.path.join(skills, 'vesta-interface'))
+        self.remoto_avanca()
+        saida = self.atualizar()
+        self.assertIn('vesta-interface: atualizada', saida)
+        self.assertTrue(os.path.exists(os.path.join(inter, 'novo.txt')))
+        self.assertTrue(os.path.exists(os.path.join(inter, 'instalou')))
+        self.assertTrue(os.path.exists(os.path.join(self.clone, 'novo.txt')))
+
+    def test_sem_interface_ligada_so_a_vesta(self):
+        self.remoto_avanca()
+        self.assertNotIn('vesta-interface', self.atualizar())
 
     def test_fetch_falhando_sai_mudo(self):
         self.git(self.clone, 'remote', 'set-url', 'origin', os.path.join(self.tmp.name, 'sumiu'))
