@@ -1423,5 +1423,114 @@ class Achar(PainelBase):
         self.assertIsNone(painel.achar(self.r))
 
 
+# Etapa 6 — tela da rodada. Nomes das fases como o mockup mostra (NOMES em
+# docs/vesta/mockups/2026-09-28-rodada-no-painel/index.html).
+NOMES = {'ativacao': 'Ativação', 'spec': 'Spec', 'pesquisa': 'Pesquisa', 'grill': 'Grill',
+         'mockup': 'Mockup', 'plano': 'Plano', 'execucao': 'Execução'}
+MARCO_DA_FASE = {'spec': 'spec', 'pesquisa': 'research', 'grill': 'grill', 'mockup': 'mockup',
+                 'plano': 'plano', 'execucao': 'execucao'}
+
+
+class MomentoFase(RodadaBase):
+    def test_sem_execucao_com_rodada_ativa_e_a_fase_atual(self):
+        for n, fase in enumerate(FASES[:7], 1):
+            with self.subTest(fase):
+                linhas = [ativar(0)] + ([ler_md(MARCO_DA_FASE[fase], 1)] if n > 1 else [])
+                self.jsonl('s1.jsonl', linhas)
+                self.assertEqual(painel.dados(self.r)['momento'],
+                                 {'tipo': 'fase', 'fase': NOMES[fase], 'texto': f'Fase {n} de 8'})
+
+    def test_fase_pulada_conta_pela_posicao_da_atual(self):
+        self.jsonl('s1.jsonl', [ativar(0), ler_md('spec', 1), ler_md('mockup', 2)])
+        self.assertEqual(painel.dados(self.r)['momento'],
+                         {'tipo': 'fase', 'fase': 'Mockup', 'texto': 'Fase 5 de 8'})
+
+    def test_com_execucao_o_momento_e_o_de_hoje(self):
+        e = estado([etapa('1', 'feita'), etapa('2')])
+        self.gravar(e)
+        self.jsonl('s1.jsonl', [ativar(0), ler_md('execucao', 1)])
+        self.assertEqual(painel.dados(self.r)['momento'], painel.momento(e))
+        self.assertEqual(painel.dados(self.r)['momento']['tipo'], 'rodando')
+
+    def test_sem_rodada_ativa_continua_vazio(self):
+        for linhas in ([texto('oi', 0)], ['{quebrado'], None):
+            with self.subTest(linhas):
+                if linhas is not None:
+                    self.jsonl('s1.jsonl', linhas)
+                self.assertEqual(painel.dados(self.r)['momento']['tipo'], 'vazio')
+
+
+IDS_RODADA = ('pergunta', 'p-opcoes', 'p-livre', 'p-enviar', 'rodada', 'fases', 'hist', 'ativ',
+              'rodada-aviso')
+
+
+class PaginaRodada(unittest.TestCase):
+    def setUp(self):
+        with open(os.path.join(AQUI, 'painel.html'), encoding='utf-8') as f:
+            self.h = f.read()
+
+    def test_ids_do_mockup(self):
+        for i in IDS_RODADA:
+            with self.subTest(i):
+                self.assertRegex(self.h, rf'\bid\s*=\s*["\']?{re.escape(i)}["\'\s>]')
+
+    def test_cores_novas_no_root(self):
+        root = re.search(r':root\s*\{([^}]*)\}', self.h)
+        self.assertIsNotNone(root)
+        for nome, valor in (('verde', '#ff4d00'), ('ciano', '#ff4d00'), ('coral', 'oklch(0.93 0 0)')):
+            with self.subTest(nome):
+                self.assertRegex(root[1], rf'--{nome}\s*:\s*{re.escape(valor)}\s*(;|$)')
+
+    def test_sem_as_cores_antigas(self):
+        for c in ('#5fd08a', '#5cc8e0', '#f07a62'):
+            with self.subTest(c):
+                self.assertNotIn(c, self.h.lower())
+
+    def test_avisos_da_rodada(self):
+        for t in ('Sem registro de sessão · a rodada aparece quando a Vesta for ativada neste projeto',
+                  'Registro em formato desconhecido', 'Nenhuma rodada nesta sessão'):
+            with self.subTest(t):
+                self.assertIn(t, self.h)
+
+    def envio(self):
+        m = re.search(r'fetch\(\s*[`\'"]/resposta/', self.h)
+        self.assertIsNotNone(m, 'nenhum fetch para /resposta/')
+        ini = max(self.h.rfind('onsubmit', 0, m.start()),
+                  self.h.rfind("addEventListener('submit'", 0, m.start()),
+                  self.h.rfind('addEventListener("submit"', 0, m.start()))
+        self.assertGreater(ini, -1, 'o fetch de /resposta/ não está no envio do formulário')
+        return self.h[ini:m.start()], self.h[m.start():m.start() + 400]
+
+    def test_envio_faz_post_em_resposta_com_o_id(self):
+        _, chamada = self.envio()
+        self.assertRegex(chamada, r'^fetch\(\s*(`/resposta/\$\{|[\'"]/resposta/[\'"]\s*\+)')
+        self.assertRegex(chamada, r'method\s*:\s*[\'"`]POST[\'"`]')
+
+    def test_envio_manda_labels_marcados_e_text_do_campo(self):
+        antes, chamada = self.envio()
+        trecho = antes + chamada
+        self.assertIn(':checked', trecho)
+        self.assertIn('p-livre', trecho)
+        for campo in ('answers', 'labels', 'text'):
+            with self.subTest(campo):
+                self.assertRegex(trecho, rf'\b{campo}\b\s*:|["\']{campo}["\']\s*:')
+
+    def test_sem_nada_nao_envia_e_mostra_o_aviso(self):
+        self.assertIn('Marque uma opção ou escreva uma resposta.', self.h)
+        antes, _ = self.envio()
+        self.assertRegex(antes, r'if\s*\([^)]*\.length[^)]*\)\s*\{?\s*return\b',
+                         'o envio não retorna antes do fetch quando não há opção nem texto')
+
+
+class ServidorPaginaRodada(ServidorBase):
+    def test_pagina_servida_tem_os_ids_da_rodada(self):
+        st, _, corpo = self.get('/')
+        self.assertEqual(st, 200)
+        h = corpo.decode()
+        for i in IDS_RODADA:
+            with self.subTest(i):
+                self.assertRegex(h, rf'\bid\s*=\s*["\']?{re.escape(i)}["\'\s>]')
+
+
 if __name__ == '__main__':
     unittest.main()
