@@ -16,7 +16,7 @@
   --chao:oklch(0.16 0 0); --chao-2:oklch(0.135 0 0); --placa:oklch(0.20 0 0 / 0.6);
   --traco:oklch(0.62 0 0 / 0.28); --traco-forte:oklch(0.72 0 0 / 0.55); --ponto:oklch(0.70 0 0 / 0.22);
   --tinta:oklch(0.93 0 0); --tinta-2:oklch(0.76 0 0); --tinta-3:oklch(0.56 0 0);
-  --verde:oklch(0.80 0.14 152); --ambar:oklch(0.82 0.14 85); --coral:oklch(0.70 0.15 28); --ciano:oklch(0.80 0.10 215);
+  --verde:#ff4d00; --ambar:oklch(0.82 0.14 85); --coral:oklch(0.70 0.15 28); --ciano:#ff4d00;
   --acento:var(--verde);
   --f-display:Rajdhani,"Eurostile",ui-sans-serif,sans-serif;
   --f-micro:"IBM Plex Mono",ui-monospace,Menlo,monospace;
@@ -440,7 +440,7 @@ function features(fs){
 }
 function aba(tipo,e){
   // favicon: um arco por etapa em volta de um V; feitas na cor do estado, a atual meio acesa
-  const cor=(D.perguntas||[]).length&&piscar?'#5cc8e0':{rodando:'#5fd08a',concluida:'#5fd08a',pausada:'#f0c14b',travada:'#f07a62',ilegivel:'#f07a62',plano:'#5cc8e0'}[tipo]||((D.perguntas||[]).length?'#5cc8e0':'#8a8a8a');
+  const cor=(D.perguntas||[]).length&&piscar?'#ff4d00':{rodando:'#ff4d00',concluida:'#ff4d00',pausada:'#f0c14b',travada:'#f07a62',ilegivel:'#f07a62',plano:'#ff4d00'}[tipo]||((D.perguntas||[]).length?'#ff4d00':'#8a8a8a');
   const n=e?e.etapas.length:0,f=e?e.etapas.filter(x=>x.status==='feita').length:0,r=12.5;
   const p=d=>[16+r*Math.cos(d*Math.PI/180),16+r*Math.sin(d*Math.PI/180)].map(v=>v.toFixed(2)).join(' ');
   let arcos=n?'':`<circle cx="16" cy="16" r="${r}" stroke="#ffffff30" stroke-width="3.4" fill="none"/>`;

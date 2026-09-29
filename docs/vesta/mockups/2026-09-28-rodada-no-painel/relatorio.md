@@ -36,6 +36,13 @@ Restantes, refutados:
 - `repeating-stripes-gradient`: hachura da fase pulada; é o sinal de "pulada", com o texto riscado
   junto (COR-16).
 
+## Rodada 3
+
+Pedido do usuário: verde e ciano trocados por `#FF4D00` em todo o painel (tokens `--verde` e
+`--ciano`, e as cores fixas do favicon). Texto `#FF4D00` sobre o fundo e texto escuro sobre
+`#FF4D00` passam de 4.5:1; o alarme `ai-color-palette` sumiu. Alarmes: 52 (1440) e 53 (375),
+os mesmos refutados da rodada 2. O coral de "travada" (`--coral`) ficou próximo do novo acento.
+
 ## Piso
 
 | id | resultado |
