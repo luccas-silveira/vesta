@@ -18,6 +18,7 @@ import unittest
 import urllib.error
 import urllib.parse
 import urllib.request
+from datetime import datetime
 from unittest import mock
 
 AQUI = os.path.dirname(os.path.abspath(__file__))
@@ -1008,6 +1009,132 @@ class RodadaAtividade(RodadaBase):
         self.assertEqual(d['atividade'][0]['alvo'], 'cmd 249')
         self.assertEqual(d['atividade'][199]['alvo'], 'cmd 50')
         self.assertIn(d['n_atividade'], (250, 251))
+
+
+SPEC = 'docs/vesta/specs/2026-01-01-abc-design.md'
+
+
+def cita(id_, minuto, rel=SPEC, nome='Read'):
+    return usar(id_, nome, {'file_path': '/u/Code/vesta-wt/' + rel}, minuto)
+
+
+# Etapa 2. Escolhas dos testes: "ordem de tempo" das sessões é a do primeiro timestamp; as horas
+# de mtime ficam longe o bastante da meia-noite para valer tanto na local quanto na UTC.
+class RodadaCostura(RodadaBase):
+    def setUp(self):
+        super().setUp()
+        self.arquivo(SPEC, '# spec\n')
+        self.outra = os.path.join(os.path.realpath(self.home.name), '.claude', 'projects',
+                                  '-u-Code-vesta-wt')
+        self.meia = datetime(2026, 1, 1).timestamp()  # meia-noite local da data da spec
+
+    def em(self, pasta, nome, linhas, mtime):
+        os.makedirs(pasta, exist_ok=True)
+        p = os.path.join(pasta, nome + '.jsonl')
+        with open(p, 'w') as f:
+            for l in linhas:
+                f.write(json.dumps(l) + '\n')
+        os.utime(p, (mtime, mtime))
+        return p
+
+    def textos(self, d):
+        return [h['texto'] for h in d['historico'] if h.get('tipo') == 'mensagem']
+
+    def test_duas_pastas_viram_uma_rodada_intercalada(self):
+        # a outra pasta é modificada por último, mas começou antes: a ordem é a do tempo
+        self.em(self.outra, 'a', [ativar(0), texto('a1', 1), ler_md('spec', 2),
+                                  cita('wa', 3, nome='Write'), texto('a2', 6),
+                                  usar('ra', 'Read', {'file_path': '/a/x.py'}, 9)],
+                self.meia + 50_000)
+        self.em(self.proj, 'b', [cita('rb', 4), texto('b1', 5), texto('b2', 7), ler_md('grill', 8)],
+                self.meia + 40_000)
+        d = painel.rodada(self.r)
+        self.assertEqual(d['sessoes'], ['a', 'b'])
+        self.assertEqual(d['inicio'], '09:00')
+        self.assertEqual(self.textos(d), ['a1', 'b1', 'a2', 'b2'])
+        self.assertEqual([x['hora'] for x in d['atividade'][:5]],
+                         ['09:09', '09:08', '09:04', '09:03', '09:02'])
+        self.assertEqual([f['estado'] for f in d['fases']],
+                         ['feita', 'feita', 'pulada', 'atual', 'pendente', 'pendente', 'pendente', 'pendente'])
+        self.assertEqual((d['fases'][1]['hora'], d['fases'][3]['hora']), ('09:02', '09:08'))
+
+    def test_comeca_na_ultima_invocacao_da_sessao_mais_antiga(self):
+        self.em(self.outra, 'a', [ativar(0, 'sk1'), texto('rodada velha', 1), ativar(2, 'sk2'),
+                                  cita('wa', 3, nome='Write'), ler_md('spec', 3), texto('a', 4)],
+                self.meia + 40_000)
+        self.em(self.proj, 'b', [ativar(10, 'sk3'), cita('rb', 11), texto('b', 12)],
+                self.meia + 50_000)
+        d = painel.rodada(self.r)
+        self.assertEqual(d['sessoes'], ['a', 'b'])
+        self.assertEqual(d['inicio'], '09:02')
+        self.assertEqual(self.textos(d), ['a', 'b'])
+        self.assertEqual(self.estados(d)['spec'], 'atual')
+
+    def test_sessao_que_nao_cita_a_spec_fica_fora_mesmo_na_pasta_do_projeto(self):
+        self.em(self.outra, 'a', [ativar(0), cita('wa', 1, nome='Write'), texto('a', 2)],
+                self.meia + 40_000)
+        self.em(self.proj, 'c', [ativar(3), texto('c', 4), ler_md('plano', 5)], self.meia + 45_000)
+        self.em(self.proj, 'b', [cita('rb', 6), texto('b', 7)], self.meia + 50_000)
+        d = painel.rodada(self.r)
+        self.assertEqual(d['sessoes'], ['a', 'b'])
+        self.assertEqual(self.textos(d), ['a', 'b'])
+        self.assertEqual(self.estados(d)['plano'], 'pendente')
+
+    def test_registro_modificado_antes_da_data_da_spec_fica_fora_sem_ser_lido(self):
+        velho = self.em(self.outra, 'd', [ativar(0), cita('wd', 1, nome='Write'), texto('d', 2)],
+                        self.meia - 6 * 3600)
+        self.em(self.outra, 'e', [ativar(3), cita('we', 4, nome='Write'), texto('e', 5)],
+                self.meia + 6 * 3600)
+        self.em(self.proj, 'b', [cita('rb', 6), texto('b', 7)], self.meia + 50_000)
+        abertos, real = [], open
+
+        def abrir(p, *a, **k):
+            if isinstance(p, str):
+                abertos.append(os.path.realpath(p))
+            return real(p, *a, **k)
+
+        with mock.patch('builtins.open', abrir):
+            d = painel.rodada(self.r)
+        self.assertEqual(d['sessoes'], ['e', 'b'])
+        self.assertEqual(self.textos(d), ['e', 'b'])
+        self.assertNotIn(os.path.realpath(velho), abertos)
+
+    def test_sem_spec_so_a_sessao_atual(self):
+        os.remove(os.path.join(self.r, SPEC))
+        self.arquivo('docs/vesta/research/2026-01-01-abc-research.md', '# pesquisa\n')
+        self.em(self.outra, 'a', [ativar(0), cita('wa', 1, nome='Write'), texto('a', 2)],
+                self.meia + 40_000)
+        self.em(self.proj, 'c', [ativar(3), cita('rc', 4), texto('c', 5)], self.meia + 45_000)
+        self.em(self.proj, 'b', [ativar(6), texto('b', 7)], self.meia + 50_000)
+        d = painel.rodada(self.r)
+        self.assertEqual(d['sessoes'], ['b'])
+        self.assertEqual(d['inicio'], '09:06')
+        self.assertEqual(self.textos(d), ['b'])
+
+    def test_sessao_atual_entra_mesmo_sem_citar_a_spec(self):
+        self.em(self.outra, 'a', [ativar(0), cita('wa', 1, nome='Write'), texto('a', 2)],
+                self.meia + 40_000)
+        self.em(self.proj, 'b', [texto('b', 3), ler_md('research', 4)], self.meia + 50_000)
+        d = painel.rodada(self.r)
+        self.assertEqual(d['sessoes'], ['a', 'b'])
+        self.assertEqual(self.textos(d), ['a', 'b'])
+        self.assertEqual(self.estados(d)['pesquisa'], 'atual')
+
+    def test_feature_do_plano_vence_a_mais_recente(self):
+        velha = 'docs/vesta/specs/2026-01-01-velha-design.md'
+        nova = 'docs/vesta/specs/2026-01-02-nova-design.md'
+        self.arquivo(velha, '# velha\n')
+        self.arquivo(nova, '# nova\n')
+        self.arquivo('docs/vesta/plans/2026-01-01-velha.md', '# plano\n')
+        dia = self.meia + 5 * 86_400
+        self.em(self.outra, 'v', [ativar(0), cita('wv', 1, velha, 'Write'), texto('v', 2)], dia)
+        self.em(self.outra, 'n', [ativar(0), cita('wn', 1, nova, 'Write'), texto('n', 2)], dia + 10)
+        self.em(self.proj, 'b', [texto('b', 3)], dia + 20)
+        with self.subTest('sem execução: a feature mais recente'):
+            self.assertEqual(painel.rodada(self.r)['sessoes'], ['n', 'b'])
+        self.gravar(estado([etapa('1')], plano='docs/vesta/plans/2026-01-01-velha.md'))
+        with self.subTest('com execução: a feature do plano'):
+            self.assertEqual(painel.rodada(self.r)['sessoes'], ['v', 'b'])
 
 
 if __name__ == '__main__':
