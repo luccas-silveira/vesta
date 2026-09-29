@@ -9,6 +9,7 @@ import os
 import re
 import subprocess
 import sys
+import urllib.request
 
 PASTA = os.path.join('.claude', 'vesta')
 # O .gitignore ignora a si mesmo: gravar o estado nunca suja a árvore. aprendizados.md fica
@@ -466,6 +467,17 @@ def cmd_painel(r, args):
     return url
 
 
+def cmd_aberto(r, args):
+    """Código de saída, sem imprimir: 0 com a página do painel da raiz de args[0] aberta."""
+    try:
+        import painel
+        url = painel.achar(raiz(args[0]))
+        with urllib.request.urlopen(f'{url}/aberto', timeout=1) as resp:
+            return 0 if json.load(resp).get('aberto') is True else 1
+    except Exception:
+        return 1
+
+
 def cmd_pausar(r, args):
     e = exigir(r)
     if e['espera'] == 'plano':
@@ -553,7 +565,7 @@ def aviso_inicio(r, entrada):
 COMANDOS = {'criar': cmd_criar, 'iniciar': cmd_iniciar, 'mostrar': cmd_mostrar,
             'prova': cmd_prova, 'concluir': cmd_concluir, 'retomar': cmd_retomar,
             'pausar': cmd_pausar, 'adicionar': cmd_adicionar, 'fechar': cmd_fechar,
-            'guarda': cmd_guarda, 'painel': cmd_painel}
+            'guarda': cmd_guarda, 'painel': cmd_painel, 'aberto': cmd_aberto}
 HOOKS = {'hook-parada': hook_parada, 'hook-inicio': hook_inicio, 'hook-adocao': hook_adocao}
 
 
@@ -565,6 +577,8 @@ def main(argv):
     if not argv or argv[0] not in COMANDOS:
         print('uso: vesta.py ' + '|'.join([*COMANDOS, *HOOKS]), file=sys.stderr)
         return 2
+    if argv[0] == 'aberto':  # responde só pelo código de saída
+        return cmd_aberto(None, argv[1:])
     try:
         saida = COMANDOS[argv[0]](raiz(), argv[1:])
     except (Recusa, ValueError) as err:

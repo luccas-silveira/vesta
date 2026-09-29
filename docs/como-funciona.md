@@ -23,6 +23,7 @@ Cada projeto guarda o estado da execução em `.claude/vesta/estado.json`. A pas
 - `adicionar`: acrescenta etapas a uma execução (por exemplo, um ajuste pedido na parada 2).
 - `fechar`: apaga o estado.
 - `painel`: sobe o painel do projeto, abre no navegador e imprime a url (`/vesta-painel`).
+- `aberto`: `aberto <cwd>` sai 0 quando a página do painel da raiz de `<cwd>` está aberta (pediu `/estado` nos últimos 10 s), 1 no resto; não imprime nada.
 - `guarda`: imprime o trecho de shell que embrulha o hook Stop de outra ferramenta.
 - `silenciar`: usado por esse trecho; sai 0 só quando a parada atual vai ser bloqueada pela Vesta.
 

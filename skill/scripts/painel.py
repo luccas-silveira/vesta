@@ -11,6 +11,7 @@ import urllib.parse
 import json
 import os
 import re
+import threading
 from collections import Counter
 from datetime import datetime
 import sys
@@ -26,6 +27,7 @@ GRILL = '## Decisões do grill'
 FASES = ['ativacao', 'spec', 'pesquisa', 'grill', 'mockup', 'plano', 'execucao', 'concluida']
 MARCO = re.compile(r'(?:skills/vesta|vesta/skill)/(spec|research|grill|mockup|plano|execucao)\.md')
 FASE_DO_MARCO = {'research': 'pesquisa'}
+PRAZO_ABERTO, PRAZO_ABANDONO, PRAZO_OUTRO = 10, 15, 5
 ALVOS = ('file_path', 'command', 'pattern', 'url', 'query', 'description', 'skill')
 
 
@@ -320,6 +322,17 @@ def servir(r, porta):
     aqui = os.path.dirname(os.path.abspath(__file__))
     estaticos = {'/': ('painel.html', 'text/html; charset=utf-8'),
                  '/marked.js': ('marked.js', 'text/javascript; charset=utf-8')}
+    prazo = {k: float(os.environ.get(f'VESTA_PRAZO_{k.upper()}', v)) for k, v in
+             (('aberto', PRAZO_ABERTO), ('abandono', PRAZO_ABANDONO), ('outro', PRAZO_OUTRO))}
+    trava = threading.Lock()
+    perguntas = {}  # id -> {id, questions, knobler, estado, desde, answers?}; dict guarda a ordem
+    visto = [None]  # hora do último /estado
+
+    def fila():
+        agora = time.time()
+        return [{k: p[k] for k in ('id', 'questions', 'knobler', 'estado')}
+                for p in perguntas.values() if p['estado'] == 'pendente'
+                or p['estado'] == 'outro' and agora - p['desde'] < prazo['outro']]
 
     class Handler(http.server.BaseHTTPRequestHandler):
         def log_message(self, *a):
@@ -335,7 +348,27 @@ def servir(r, porta):
         def do_GET(self):
             u = urllib.parse.urlsplit(self.path)
             if u.path == '/estado':
-                return self.responder(json.dumps(dados(r)).encode(), 'application/json')
+                d = dados(r)
+                with trava:
+                    visto[0] = time.time()
+                    d['perguntas'] = fila()
+                return self.devolver(d)
+            if u.path == '/aberto':
+                with trava:
+                    return self.devolver({'aberto': visto[0] is not None
+                                      and time.time() - visto[0] < prazo['aberto']})
+            if u.path.startswith('/pergunta/'):
+                with trava:
+                    p = perguntas.get(u.path[len('/pergunta/'):])
+                    if not p:
+                        return self.devolver({'estado': 'desconhecida'})
+                    if p['estado'] == 'respondida':
+                        return self.devolver({'estado': 'respondida', 'answers': p['answers']})
+                    if p['estado'] == 'outro':
+                        return self.devolver({'estado': 'encerrada'})
+                    if time.time() - (visto[0] or p['desde']) > prazo['abandono']:
+                        return self.devolver({'estado': 'abandonada'})
+                    return self.devolver({'estado': 'pendente'})
             if u.path == '/quem':
                 return self.responder(f'vesta-painel {r}'.encode())
             if u.path == '/doc':
@@ -351,6 +384,42 @@ def servir(r, porta):
                     return self.responder(f.read(), tipo)
             self.responder(b'', status=404)
 
+        def devolver(self, d, status=200):
+            return self.responder(json.dumps(d).encode(), 'application/json', status)
+
+        def do_POST(self):
+            try:
+                corpo = json.loads(self.rfile.read(int(self.headers.get('Content-Length') or 0)))
+            except ValueError:
+                corpo = None
+            partes = urllib.parse.urlsplit(self.path).path.strip('/').split('/')
+            if not isinstance(corpo, dict):
+                return self.devolver({'erro': 'corpo inválido'}, 400)
+            with trava:
+                if partes == ['pergunta']:
+                    if not isinstance(corpo.get('id'), str) or not isinstance(corpo.get('questions'), list):
+                        return self.devolver({'erro': 'faltam id ou questions'}, 400)
+                    perguntas[corpo['id']] = {'id': corpo['id'], 'questions': corpo['questions'],
+                                              'knobler': bool(corpo.get('knobler')),
+                                              'estado': 'pendente', 'desde': time.time()}
+                    return self.devolver({})
+                if len(partes) == 2 and partes[0] == 'resposta':
+                    campo, novo = 'answers', 'respondida'
+                elif len(partes) == 3 and partes[0] == 'pergunta' and partes[2] == 'encerrar':
+                    campo, novo = 'motivo', 'outro'
+                else:
+                    return self.devolver({}, 404)
+                p = perguntas.get(partes[1])
+                if not p:
+                    return self.devolver({}, 404)
+                if campo not in corpo:
+                    return self.devolver({'erro': f'falta {campo}'}, 400)
+                if p['estado'] != 'pendente':
+                    return self.devolver({'erro': p['estado']}, 409)
+                p.update(estado=novo, desde=time.time(), **{campo: corpo[campo]})
+                return self.devolver({})
+
+    http.server.ThreadingHTTPServer.request_queue_size = 64  # o padrão (5) recusa rajadas
     try:
         srv = http.server.ThreadingHTTPServer(('127.0.0.1', porta), Handler)
     except OSError:
@@ -377,6 +446,17 @@ def _ocupada(n):
         return True
     except OSError:
         return False
+
+
+def achar(r):
+    base = porta(r)
+    for i in range(100):
+        n = 4700 + (base - 4700 + i) % 100
+        if not _ocupada(n):
+            return None
+        if _quem(n) == f'vesta-painel {r}':
+            return f'http://localhost:{n}'
+    return None
 
 
 def subir(r):
