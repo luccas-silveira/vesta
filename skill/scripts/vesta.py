@@ -136,7 +136,8 @@ def cmd_criar(r, args):
     if not isinstance(d, dict) or not d.get('teste') or not d.get('etapas'):
         raise Recusa('criar espera um JSON com plano, teste e etapas')
     e = {'versao': 1, 'plano': d.get('plano', ''), 'teste': d['teste'], 'tela': d.get('tela', []),
-         'mockup': d.get('mockup'), 'sessao': None, 'espera': 'plano', 'motivo': None,
+         'mockup': d.get('mockup'), 'tela_existente': bool(d.get('tela_existente')),
+         'sessao': None, 'espera': 'plano', 'motivo': None,
          'bloqueios': {'seguidos': 0, 'assinatura': ''}, 'etapas': []}
     acrescentar(e, d['etapas'])
     gravar(r, e)
@@ -151,6 +152,60 @@ def exigir_mockup(r, e, etapas):
     if not m or git(r, 'ls-files', '--error-unmatch', m) is None:
         raise Recusa('o plano tem tela e não há mockup aprovado e commitado; faça o mockup '
                      '(mockup.md) antes de executar')
+    exigir_provas(r, os.path.dirname(m))
+    if not e.get('tela_existente'):
+        exigir_direcoes(r)
+
+
+def rastreados(r, pasta):
+    """Nomes dos arquivos rastreados direto em `pasta` (sem subpastas)."""
+    saida = git(r, 'ls-files', '--', pasta + '/') or ''
+    return {os.path.basename(f) for f in saida.splitlines() if os.path.dirname(f) == pasta}
+
+
+def melhor(grupos, sufixos):
+    """O grupo (rodada ou tela) com mais arquivos presentes; None quando não há nenhum."""
+    return max(sorted(grupos), key=lambda g: sum(g + s in grupos[g] for s in sufixos), default=None)
+
+
+def exigir_provas(r, pasta):
+    """As provas da verificação da vesta-interface, commitadas em `pasta`, com o mesmo N."""
+    nomes = rastreados(r, pasta)
+    if 'relatorio.md' not in nomes:
+        raise Recusa(f'falta {pasta}/relatorio.md commitado: rode a verificação da vesta-interface')
+    sufixos = ('-375.png', '-1440.png', '-detector-375.json', '-detector-1440.json')
+    rodadas = {}
+    for n in nomes:
+        m = re.fullmatch(r'(r\d+)(-375\.png|-1440\.png|-detector-375\.json|-detector-1440\.json)', n)
+        if m:
+            rodadas.setdefault(m[1], set()).add(n)
+    rn = melhor(rodadas, sufixos) or 'r<N>'
+    for s in sufixos:
+        if rn + s not in nomes:
+            raise Recusa(f'falta {pasta}/{rn + s} commitado (prints e detectores da mesma rodada)')
+    for s in sufixos[2:]:
+        try:
+            with open(os.path.join(r, pasta, rn + s)) as f:
+                json.load(f)
+        except (OSError, ValueError):
+            raise Recusa(f'{pasta}/{rn + s} não é JSON válido: grave a saída do detector em JSON')
+
+
+def exigir_direcoes(r):
+    """As duas direções da tela nova e os quatro prints delas (passo 3 da vesta-interface)."""
+    pasta = 'docs/design/mockups'
+    nomes = rastreados(r, pasta)
+    sufixos = ('-a.html', '-b.html', '-a-375.png', '-a-1440.png', '-b-375.png', '-b-1440.png')
+    telas = {}
+    for n in nomes:
+        m = re.fullmatch(r'(.+)-[ab](\.html|-375\.png|-1440\.png)', n)
+        if m:
+            telas.setdefault(m[1], set()).add(n)
+    t = melhor(telas, sufixos) or '<tela>'
+    for s in sufixos:
+        if t + s not in nomes:
+            raise Recusa(f'falta {pasta}/{t + s} commitado: as duas direções da tela nova e os prints '
+                         'delas (tela que já existe: "tela_existente": true no criar)')
 
 
 def cmd_iniciar(r, args):
@@ -268,6 +323,8 @@ def cmd_concluir(r, args):
     # Arquivo não rastreado criado pelo próprio teste (relatório, cobertura) não invalida a prova.
     if git(r, 'status', '--porcelain', '--untracked-files=no'):
         raise Recusa('há arquivo rastreado mudado depois da prova; commite e rode prova teste de novo')
+    if x.get('tela'):
+        exigir_provas(r, os.path.join(os.path.dirname(e.get('mockup') or ''), f'etapa-{x["id"]}'))
     x['status'] = 'feita'
     gravar(r, e)
     return f'etapa {args[0]} feita'
@@ -425,6 +482,7 @@ def cmd_adicionar(r, args):
     novas = ler_entrada()
     if isinstance(novas, dict):  # {"mockup": ..., "etapas": [...]}: o ajuste traz a primeira tela
         e['mockup'] = novas.get('mockup') or e.get('mockup')
+        e['tela_existente'] = bool(novas.get('tela_existente', e.get('tela_existente')))
         novas = novas.get('etapas')
     if not isinstance(novas, list) or not novas:
         raise Recusa('adicionar espera uma lista JSON de etapas')

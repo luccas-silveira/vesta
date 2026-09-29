@@ -30,6 +30,11 @@ Você nunca edita o estado à mão.
    passo 5. O script conta as tentativas e trava a etapa na oitava.
 7. Verde: `python3 ~/.claude/skills/vesta/scripts/vesta.py concluir N`.
 
+Etapa com tela: depois do verde, a sessão principal roda o passo 5 da vesta-interface na tela
+servida. Grava as provas da verificação em `<pasta do mockup>/etapa-<id>/`, com os nomes de
+`mockup.md`. Commita as provas, roda `prova teste N` de novo e só então `concluir N`. Sem as
+provas, `concluir` recusa.
+
 As tentativas acontecem dentro do mesmo turno: não pare entre uma e outra.
 
 O comando de teste gera arquivo (relatório, cobertura, log) e a prova seguinte recusa por

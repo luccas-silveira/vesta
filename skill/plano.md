@@ -53,13 +53,15 @@ python3 ~/.claude/skills/vesta/scripts/vesta.py criar <<'JSON'
  "teste": "<comando de teste>",
  "tela": ["<pasta>"],
  "mockup": "docs/vesta/mockups/<pasta>/index.html",
+ "tela_existente": false,
  "etapas": [{"id": "1", "titulo": "<título>", "tela": false}]}
 JSON
 ```
 
 Uma entrada em `etapas` por etapa do plano, com os mesmos ids. `mockup` fica fora só quando
-não há tela; com tela e sem mockup commitado, `iniciar` recusa. O estado nasce esperando
-aprovação: a trava ainda não age.
+não há tela; com tela e sem mockup commitado, `iniciar` recusa. `tela_existente` é `true`
+quando a tela já existe e o mockup tem uma direção só; tela nova leva `false`. O estado nasce
+esperando aprovação: a trava ainda não age.
 
 ## Parada 1
 

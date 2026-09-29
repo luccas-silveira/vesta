@@ -38,9 +38,12 @@ estilo que o projeto já tem. Não é hora de redesenhar o que a spec não pediu
 
 Tela nova: as duas direções visuais e a escolha do usuário seguem o passo 3 da vesta-interface.
 Só depois que o usuário escolhe uma você completa as demais telas na direção escolhida.
+As direções ficam commitadas com os nomes do passo 3: `docs/design/mockups/<tela>-a.html`,
+`<tela>-b.html` e os prints `<tela>-a-375.png`, `<tela>-a-1440.png`, `<tela>-b-375.png` e
+`<tela>-b-1440.png`.
 
 Tela que já existe e está mudando fica fora disso: uma direção só, no estilo atual, sem trocar por
-outra de `catalogo/direcoes/`.
+outra de `catalogo/direcoes/`. No `criar`, ela leva `"tela_existente": true`.
 
 ## O arquivo
 
@@ -60,6 +63,13 @@ Antes de mostrar, rode a verificação de `referencias/verificacao.md` da vesta-
 máximo 3 rodadas, com os prints de celular e de desktop guardados na pasta do mockup. Além do que
 ela confere, olhe nos prints: a lista de conteúdo está toda coberta e nada tem cara de wireframe
 (caixas cinza, sem hierarquia). Falhou alguma, corrija na rodada seguinte.
+
+As provas da verificação têm os nomes da vesta-interface: `relatorio.md`, os prints
+`r<N>-375.png` e `r<N>-1440.png` e a saída do detector em `r<N>-detector-375.json` e
+`r<N>-detector-1440.json`, com o mesmo N da rodada. O detector é JSON válido.
+
+As provas ficam commitadas na pasta do mockup, junto do `index.html`. Sem elas, ou sem as
+direções da tela nova, `iniciar` recusa e diz o arquivo que falta, como `relatorio.md`.
 
 Commite o mockup e abra: `open docs/vesta/mockups/<pasta>/index.html`.
 
