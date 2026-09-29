@@ -19,7 +19,7 @@ existe arquivo em `docs/vesta/` ou execução em `.claude/vesta/estado.json`; tu
 - Abordagem: um hook intercepta o menu antes de ele aparecer (abordagem 1).
 - A rodada que atravessa sessões é costurada numa só.
 - O menu vai para o painel em qualquer AskUserQuestion do projeto, não só nos da Vesta.
-- Na ativação da skill, o painel sobe e abre sozinho no navegador se não estiver aberto.
+- Na ativação da skill, o painel sobe e abre sozinho no navegador se não houver página aberta.
 
 ## O que foi suposto
 
@@ -88,6 +88,8 @@ Rotas novas no servidor do painel:
 cada vez, com as opções, multiseleção quando a pergunta pede e campo de resposta livre. Com
 pergunta pendente, o título da aba vira "pergunta · <projeto>" e o favicon pisca.
 
+`POST /resposta` aceita pedido de qualquer origem, sem senha (decisão do usuário, ver A5).
+
 Fila só em memória: servidor reiniciado perde as pendentes, e o hook, sem resposta do
 servidor, devolve o menu ao terminal.
 
@@ -95,13 +97,26 @@ servidor, devolve o menu ao terminal.
 
 1. Sem servidor do painel do projeto, ou sem página aberta: sai sem nada; o menu aparece no
    terminal.
-2. Com página aberta: `POST /pergunta`, depois consulta a cada segundo.
-3. `respondida`: devolve a resposta à sessão pelo caminho que a pesquisa confirmar
-   (preencher `answers` via `updatedInput`, ou negar com a resposta no motivo).
-4. `abandonada`, erro de rede ou exceção: sai sem nada; o menu aparece no terminal.
+2. Com página aberta: `POST /pergunta` no painel e, se o Knobler estiver no ar
+   (`localhost:4477`), `POST /ask` nele com o mesmo id; depois consulta os dois a cada segundo.
+3. Primeira resposta, de qualquer um dos dois: cancela a do outro (`POST /ask/<id>/cancel` no
+   Knobler, ou marca a do painel como respondida em outro lugar) e devolve à sessão com
+   `permissionDecision: allow` e `updatedInput` = `{questions, answers}`, no formato do
+   `knobler-ask.sh` (texto livre vence rótulos; vários rótulos juntados por ", ").
+4. Cancelada no Knobler (✕): segue esperando o painel. `abandonada` no painel: segue esperando
+   o Knobler, se ele recebeu; se não, sai.
+5. Erro de rede ou exceção: cancela no Knobler o que tiver mandado, sai sem nada; o menu
+   aparece no terminal.
 
-Sem prazo para responder enquanto a página estiver aberta, até o limite de tempo que o hook
-aceita (a pesquisa confirma o máximo).
+O gancho do Knobler (`~/.claude/hooks/knobler-ask.sh`, repositório `claude-tooling`) ganha uma
+saída antecipada: `python3 ~/.claude/skills/vesta/scripts/vesta.py aberto "$cwd" && exit 0`.
+O comando `aberto` sai 0 quando o painel da raiz do `cwd` teve pedido a `/estado` nos últimos
+10 segundos e 1 em qualquer outro caso, inclusive erro. Assim só
+um gancho responde. Painel fechado: o Knobler funciona como hoje. Essa mudança mora em outro
+repositório e ganha teste de contrato aqui.
+
+Prazo de 1 hora: o hook declara `timeout` 3660 e desiste aos 3600 s, cancela no Knobler e
+sai; o menu aparece no terminal.
 
 ## Mudanças na Vesta
 
@@ -121,6 +136,9 @@ faixa. Passa pelo mockup da vesta-interface antes de ser construída.
 
 ## Erros
 
+- Registro em formato desconhecido (há linhas JSON, mas nenhuma com `message.content` em
+  lista): o bloco mostra "registro em formato desconhecido" e não tenta ler fase, histórico
+  nem atividade. A resposta pelo painel continua, porque não depende do registro.
 - Linha ilegível no registro: ignorada. Sem registro: o bloco mostra "sem registro"; o resto
   do painel continua.
 - Hook de menu nunca trava a sessão por falha própria: toda falha cai no terminal.
@@ -142,3 +160,25 @@ Biblioteca padrão, no padrão de `test_painel.py`/`test_vesta.py`:
 
 O código mora em `~/Code/vesta`. A execução roda numa sessão aberta lá, porque a trava de
 parada segue a pasta da sessão.
+
+## Decisões do grill
+
+- **A1** — com o painel aberto, a pergunta vai ao painel e ao Knobler, e vale a primeira
+  resposta; o gancho do Knobler sai da frente nesse caso. Motivo: o Knobler já intercepta
+  todo AskUserQuestion (`~/.claude/hooks/knobler-ask.sh`), e dois ganchos respondendo fazem
+  valer a resposta do último a terminar, não a primeira do usuário.
+- **A2** — resposta volta por `allow` + `updatedInput` com `answers`. Motivo: funciona
+  (teste 1 desta pesquisa, e é o que o Knobler faz).
+- **A3** — descartado negar com recado. Motivo: a resposta volta como erro de gancho.
+- **A4** — prazo de 1 hora, depois o menu vai ao terminal. Motivo: o padrão de 10 minutos
+  derruba a pergunta se o usuário sair da mesa.
+- **A5** — mantido sem senha nem conferência de origem nas respostas, por decisão do usuário,
+  ciente de que um site aberto no navegador pode responder a um menu.
+- **A6** — derrubadas as decisões de 25/09 (sobe só com `docs/vesta`, sem hook novo, sem abrir
+  o navegador, sem linha do tempo). O ruído de aba por projeto que motivou não abrir o
+  navegador fica contido: só abre quando não há página do projeto aberta.
+- **A7** — `test/test_plugin.py` e `test/test_instalacao_real.py` mudam junto com os hooks.
+- **A8** — formato desconhecido do registro vira aviso, sem adivinhação.
+- **A9, A10, A12** — confirmam a spec; entram no plano como estão.
+- **A11** — os 22 pontos de texto livre viram menu; a escolha de direção do mockup, que mora
+  na vesta-interface, ganha teste de contrato aqui.
