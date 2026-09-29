@@ -38,7 +38,10 @@ Contexto que vale para as três etapas:
 - **Arquivos:** muda `skill/scripts/painel.html` e `skill/scripts/test_painel.py`.
 - **O que prova a etapa** (na simulação da etapa 1, salvo quando dito):
   - Duas leituras com os mesmos dados deixam cada filho de `#arco`, `#pontos`, `#colunas`, `#ferr`, `#dias`, `#radar`, `#onda` e `#rel` como o mesmo objeto. O teste marca os objetos depois do primeiro `render()` e confere que todos seguem marcados depois do segundo, e que a contagem não mudou.
-  - Uma request nova (um valor a mais em `sessao.entrada`) acrescenta exatamente 15 círculos a `#pontos`, e os círculos antigos seguem sendo os mesmos objetos. O `cy` do círculo de cabeça da coluna nova termina no valor final (`H - v/max*H`), não no de partida.
+  - Tokens desenha cada coluna como um grupo `<g>` com os 15 pontos dela. A posição da coluna fica no `transform` do grupo (`translate(x 0) scale(1 1)`), e os pontos têm `cx` relativo à coluna: a cabeça fica em 0, e os outros num leve desvio em volta.
+    - Uma request nova (um valor a mais em `sessao.entrada`) acrescenta um grupo com exatamente 15 círculos, e os grupos antigos seguem sendo os mesmos objetos.
+    - O `transform` do grupo novo termina em `translate(190 0) scale(1 1)`, e o `cy` do círculo de cabeça termina no valor final (`H - v/max*H`), não no de partida.
+    - Motivo: na verificação com dados reais (126 requests), animar os 1890 pontos um a um deixou a abertura com quadros de 300 ms e passando de 1 s. Por grupo são 126 animações.
   - Mudar `tempos['2']` faz a barra da etapa 2 em `#colunas` terminar com a `height` final e o texto do valor igual ao novo número. Uma etapa que some de `tempos` tem a coluna removida.
   - Uma feature que sai de `features` tem o círculo, a linha e o número dela removidos de `#radar`. Uma que entra acrescenta os três.
   - Mudar `sessao.contexto` faz o arco de uso terminar no percentual novo: o `d` do traço de uso é igual ao desenhado direto para esse percentual, e o texto central mostra o percentual novo com uma casa decimal.
@@ -67,6 +70,7 @@ Contexto que vale para as três etapas:
     - (a) O motor inteiro, `index.html:529-624`, de `// Movimento:` até a linha do `visibilitychange`, no lugar do `const pintar=...` atual (`painel.html:508`). O `pintar` novo substitui o antigo com a mesma assinatura `pintar(g, xs)`.
     - (b) As funções `arco`, `pontos`, `colunas`, `ferr`, `dias`, `radar`, `onda` e `relogio` do mockup (`:408`, `:429`, `:440`, `:456`, `:625`, `:644`, `:658`, `:679`), no lugar das atuais.
     - (c) O CSS de `index.html:222-226`, logo depois da regra `@media (prefers-reduced-motion:reduce){.vivo{animation:none}}` (`painel.html:221`).
+  - `pontos` agrupa cada coluna: `com(el('g',{transform:`translate(${x} 0) scale(1 1)`}),{k:'col'+i,de:{transform:`translate(${x} ${H}) scale(1 0)`}})`, com os 14 pontos (`cx:(rnd()-.5)*2.5`, sem `de`) e a cabeça (`cx:0`) dentro do grupo, na mesma ordem de sorteio de hoje. Com o `de`, a coluna nova nasce achatada na base e sobe, e cada ponto vai da base até a altura dele.
   - Em `render()`, pôr `abrindo=false;` logo depois de `novos();` (mockup `:523`), e trocar os três `textContent` de `n-req`, `n-ferr` e `n-saida` por `escreve(...)`, como no mockup.
   - Não mudar nesta etapa `etapas`, `rodada`, `features`, `seq` e `provas`: são da etapa 3. O `radar` do mockup pinta também a legenda `#radar-leg` com `pintar`, e isso entra já aqui.
   - Expor `mistura` já é automático: é uma função de topo no script.
