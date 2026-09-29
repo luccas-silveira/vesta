@@ -23,6 +23,10 @@ DOCS = os.path.join('docs', 'vesta')
 PASSOS = {'specs': 'spec', 'research': 'research', 'plans': 'plano', 'mockups': 'mockup'}
 NOME = re.compile(r'^(\d{4}-\d{2}-\d{2})-(.+?)(-design|-research)?(\.md)?$')
 GRILL = '## Decisões do grill'
+FASES = ['ativacao', 'spec', 'pesquisa', 'grill', 'mockup', 'plano', 'execucao', 'concluida']
+MARCO = re.compile(r'(?:skills/vesta|vesta/skill)/(spec|research|grill|mockup|plano|execucao)\.md')
+FASE_DO_MARCO = {'research': 'pesquisa'}
+ALVOS = ('file_path', 'command', 'pattern', 'url', 'query', 'description', 'skill')
 
 
 def momento(e):
@@ -153,6 +157,115 @@ def sessao(r):
             'janela': 1000000 if max(entrada) > 200000 else 200000}
 
 
+def _hora(ts):
+    return _instante(ts).astimezone().strftime('%H:%M')
+
+
+def _alvo(nome, e):
+    if nome == 'AskUserQuestion':
+        return ((e.get('questions') or [{}])[0]).get('question', '')
+    for k in ALVOS:
+        if isinstance(e.get(k), str):
+            return e[k].split('\n')[0][:120] if k == 'command' else e[k]
+    return ''
+
+
+def _ondes():
+    ondes = {}
+    try:
+        with open(os.path.join(os.environ['HOME'], '.claude', 'vesta', 'respostas.jsonl')) as f:
+            for linha in f:
+                try:
+                    l = json.loads(linha)
+                    ondes[l['tool_use_id']] = l['onde']
+                except (ValueError, KeyError, TypeError):
+                    continue
+    except OSError:
+        pass
+    return ondes
+
+
+def rodada(r):
+    arqs = glob.glob(os.path.join(pasta_sessoes(r), '*.jsonl'))
+    arqs = [a for a in sorted(arqs, key=os.path.getmtime, reverse=True) if not _do_sdk(a)]
+    if not arqs:
+        return {'formato': 'sem'}
+    conhecido, inicio, marcos, hist, ativ, respostas = False, None, {}, [], [], {}
+    with open(arqs[0]) as f:
+        for linha in f:
+            try:
+                l = json.loads(linha)
+            except ValueError:
+                continue
+            msg = l.get('message') if isinstance(l, dict) else None
+            if not isinstance(msg, dict) or not isinstance(msg.get('content'), list):
+                continue
+            conhecido = True
+            res = l.get('toolUseResult')
+            if isinstance(res, dict) and isinstance(res.get('answers'), dict):
+                for c in msg['content']:
+                    if isinstance(c, dict) and c.get('type') == 'tool_result':
+                        respostas[c.get('tool_use_id')] = res['answers']
+            if l.get('type') != 'assistant':
+                continue
+            ts = l.get('timestamp')
+            for c in msg['content']:
+                if not isinstance(c, dict):
+                    continue
+                if c.get('type') == 'text' and inicio:
+                    hist.append({'tipo': 'mensagem', 'texto': c.get('text', ''), 'hora': _hora(ts)})
+                if c.get('type') != 'tool_use':
+                    continue
+                nome, e = c.get('name', ''), c.get('input') or {}
+                if nome == 'Skill' and e.get('skill') == 'vesta':
+                    inicio, marcos, hist, ativ = ts, {}, [], []
+                if not inicio:
+                    continue
+                ativ.append({'ferramenta': re.sub(r'^mcp__.+?__', '', nome),
+                             'alvo': _alvo(nome, e), 'hora': _hora(ts)})
+                alvo = e.get('file_path') if nome == 'Read' else e.get('command') if nome == 'Bash' else None
+                if isinstance(alvo, str):
+                    m = MARCO.search(alvo)
+                    fase = FASE_DO_MARCO.get(m[1], m[1]) if m else (
+                        'execucao' if nome == 'Bash' and re.search(r'vesta\.py (?:criar|iniciar)', alvo) else None)
+                    if fase:
+                        marcos.pop(fase, None)
+                        marcos[fase] = ts
+                if nome == 'AskUserQuestion':
+                    for q in e.get('questions') or []:
+                        hist.append({'id': c.get('id'), 'header': q.get('header'),
+                                     'pergunta': q.get('question'), 'multipla': bool(q.get('multiSelect')),
+                                     'rotulos': [o.get('label') for o in q.get('options') or []],
+                                     'hora': _hora(ts)})
+    if not conhecido:
+        return {'formato': 'desconhecido'}
+    if not inicio:
+        return {'formato': 'nenhuma'}
+    ondes = _ondes()
+    for h in hist:
+        if 'pergunta' in h:
+            resp = (respostas.get(h['id']) or {}).get(h['pergunta'])
+            rot = h.pop('rotulos')
+            h.update(resposta=resp, onde=ondes.get(h.pop('id'), 'terminal'),
+                     livre=resp is not None and not all(p in rot for p in resp.split(', ')))
+    # lê sem validar: só o status das etapas importa aqui
+    try:
+        with open(vesta.caminho(r)) as f:
+            fim = encerrada(json.load(f))
+    except (OSError, ValueError, KeyError, TypeError):
+        fim = False
+    atual = 7 if fim else FASES.index(list(marcos)[-1]) if marcos else 0
+    fases = []
+    for i, fase in enumerate(FASES):
+        hora = _hora(inicio) if i == 0 else _hora(marcos[fase]) if fase in marcos else None
+        estado = ('atual' if i == atual else 'pendente' if i > atual
+                  else 'feita' if i == 0 or fase in marcos else 'pulada')
+        fases.append({'id': fase, 'estado': estado, 'hora': hora})
+    return {'formato': 'claude-code', 'sessoes': [os.path.basename(arqs[0])[:-6]],
+            'inicio': _hora(inicio), 'fases': fases, 'historico': hist,
+            'atividade': ativ[::-1][:200], 'n_atividade': len(ativ)}
+
+
 def dados(r):
     erro = None
     try:
@@ -166,7 +279,8 @@ def dados(r):
     return {'projeto': os.path.basename(r), 'caminho': caminho,
             'momento': {'tipo': 'ilegivel', 'texto': 'Estado ilegível'} if erro else momento(e),
             'estado': e, 'erro': erro, 'features': fs, 'atual': atual,
-            'tempos': tempo_etapas(r, e) if e else {}, 'sessao': sessao(r)}
+            'tempos': tempo_etapas(r, e) if e else {}, 'sessao': sessao(r),
+            'rodada': rodada(r)}
 
 
 def servir(r, porta):
