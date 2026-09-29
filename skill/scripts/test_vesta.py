@@ -1099,5 +1099,135 @@ class Menu(ComPainel):
         self.assertTrue(self.cancelou(k))
 
 
+def quem(n):
+    try:
+        with urllib.request.urlopen(f'http://127.0.0.1:{n}/quem', timeout=0.5) as r:
+            return r.read().decode().strip()
+    except Exception:
+        return ''
+
+
+class Ativacao(ComPainel):
+    """`vesta.py hook-ativacao` (PreToolUse de Skill): ativar a skill `vesta` sobe o painel da
+    raiz, mesmo sem Vesta no projeto, e abre a página se ela não estiver aberta.
+
+    Abridor: `VESTA_ABRIR` (padrão `open`), chamado com a url como único argumento. O falso
+    grava cada chamada numa linha de `abertos`. Um `open` falso no PATH grava em `open-real`:
+    nunca deve ser usado quando `VESTA_ABRIR` está definido."""
+
+    def setUp(self):
+        super().setUp()
+        self.home = tempfile.TemporaryDirectory()
+        self.addCleanup(self.home.cleanup)
+        self.bin = tempfile.TemporaryDirectory()
+        self.addCleanup(self.bin.cleanup)
+        self.abertos_em = os.path.join(self.bin.name, 'abertos')
+        self.open_real = os.path.join(self.bin.name, 'open-real')
+        self.abridor = self.script('abrir', self.abertos_em)
+        self.script('open', self.open_real)
+        self.env = {**ENV, 'HOME': self.home.name, 'VESTA_ABRIR': self.abridor,
+                    'PATH': self.bin.name + os.pathsep + ENV.get('PATH', '')}
+        self.addCleanup(self.matar)  # o painel sobe em sessão própria, fora do alcance do teste
+
+    def script(self, nome, destino):
+        caminho = os.path.join(self.bin.name, nome)
+        with open(caminho, 'w') as f:
+            f.write(f'#!/bin/sh\necho "$@" >> {destino}\n')
+        os.chmod(caminho, 0o755)
+        return caminho
+
+    def vivos(self):
+        return [4700 + i for i in range(100) if quem(4700 + i) == f'vesta-painel {self.r}']
+
+    def matar(self):
+        for n in self.vivos():
+            out = subprocess.run(['lsof', '-ti', f'tcp:{n}', '-sTCP:LISTEN'], capture_output=True,
+                                 text=True).stdout.split()
+            for pid in out:
+                subprocess.run(['kill', pid], capture_output=True)
+
+    def ativar(self, skill='vesta', entrada=None):
+        if entrada is None:
+            entrada = json.dumps({'session_id': 's1', 'cwd': self.r, 'hook_event_name': 'PreToolUse',
+                                  'tool_name': 'Skill', 'tool_use_id': 'tu1',
+                                  'tool_input': {'skill': skill}})
+        p = subprocess.run(['python3', SCRIPT, 'hook-ativacao'], cwd=self.fora.name, env=self.env,
+                           input=entrada, capture_output=True, text=True, timeout=30)
+        self.assertEqual(p.returncode, 0, p.stderr)
+        if p.stdout.strip():  # saída opcional, mas nunca decide a permissão da ferramenta
+            self.assertNotIn('permissionDecision',
+                             json.loads(p.stdout).get('hookSpecificOutput') or {})
+        return p
+
+    def ler(self, caminho):
+        if not os.path.exists(caminho):
+            return []
+        with open(caminho) as f:
+            return f.read().split()
+
+    def abertos(self, esperar=True):
+        """Linhas do abridor falso; espera até 3 s pela primeira, depois mais 0,5 s por repetidas."""
+        fim = time.time() + (3 if esperar else 0)
+        while not self.ler(self.abertos_em) and time.time() < fim:
+            time.sleep(0.05)
+        time.sleep(0.5)
+        self.assertEqual(self.ler(self.open_real), [], 'usou `open` em vez de VESTA_ABRIR')
+        return self.ler(self.abertos_em)
+
+    def arvore(self):
+        return subprocess.run(['git', 'status', '--porcelain', '--untracked-files=all', '--ignored'],
+                              cwd=self.r, capture_output=True, text=True, check=True).stdout
+
+    def test_sem_vesta_sem_painel_sobe_abre_uma_vez_e_nao_cria_pasta(self):
+        self.ativar()
+        vivos = self.vivos()
+        self.assertEqual(len(vivos), 1, 'o painel da raiz não subiu')
+        self.assertEqual(self.abertos(), [f'http://localhost:{vivos[0]}'])
+        self.assertFalse(os.path.exists(os.path.join(self.r, 'docs')))
+        self.assertFalse(os.path.exists(os.path.join(self.r, '.claude')))
+        self.assertEqual(self.arvore(), '')
+
+    def test_painel_no_ar_sem_pagina_abre_o_mesmo_sem_subir_outro(self):
+        self.servir(env=self.env)
+        self.ativar()
+        self.assertEqual(self.abertos(), [f'http://localhost:{self.porta}'])
+        self.assertEqual(self.vivos(), [self.porta])
+
+    def test_pagina_aberta_nao_abre(self):
+        self.servir(env=self.env)
+        self.estado()
+        self.ativar()
+        self.assertEqual(self.abertos(esperar=False), [])
+        self.assertEqual(self.vivos(), [self.porta])
+
+    def test_subpasta_usa_a_raiz(self):
+        os.makedirs(os.path.join(self.r, 'a', 'b'))
+        entrada = json.dumps({'session_id': 's1', 'cwd': os.path.join(self.r, 'a', 'b'),
+                              'tool_name': 'Skill', 'tool_input': {'skill': 'vesta'}})
+        self.ativar(entrada=entrada)
+        vivos = self.vivos()
+        self.assertEqual(len(vivos), 1)
+        self.assertEqual(self.abertos(), [f'http://localhost:{vivos[0]}'])
+
+    def test_outra_skill_nao_faz_nada(self):
+        for nome in ('vesta-interface', 'vesta-painel', 'grill-me'):
+            p = self.ativar(nome)
+            self.assertEqual(p.stdout, '')
+        self.assertEqual(self.vivos(), [])
+        self.assertEqual(self.abertos(esperar=False), [])
+        self.assertEqual(self.arvore(), '')
+
+    def test_abridor_quebrado_nao_bloqueia(self):
+        self.env['VESTA_ABRIR'] = os.path.join(self.bin.name, 'nao-existe')
+        self.ativar()
+        self.assertEqual(len(self.vivos()), 1)
+
+    def test_entrada_ruim_sai_0_sem_decidir(self):
+        for entrada in ('', 'não é json', json.dumps({'tool_name': 'Skill',
+                                                      'tool_input': {'skill': 'vesta'},
+                                                      'cwd': os.path.join(self.r, 'nao-existe')})):
+            self.ativar(entrada=entrada)
+
+
 if __name__ == '__main__':
     unittest.main()

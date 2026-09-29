@@ -543,6 +543,18 @@ class Subir(PainelBase):
         self.assertIsNone(painel.subir(self.r))
         self.assertNotIn(f'vesta-painel {self.r}', quem(painel.porta(self.r)))
 
+    def test_forcar_sobe_sem_vesta_e_nao_cria_pasta(self):
+        u = painel.subir(self.r, forcar=True)
+        self.assertIsNotNone(u)
+        self.assertEqual(quem(int(u.rsplit(':', 1)[1])), f'vesta-painel {self.r}')
+        self.assertEqual(painel.achar(self.r), u)
+        time.sleep(0.3)
+        self.assertEqual(sorted(os.listdir(self.r)), ['.git'])
+
+    def test_forcar_falso_continua_recusando(self):
+        self.assertIsNone(painel.subir(self.r, forcar=False))
+        self.assertEqual([i for i in range(100) if f'vesta-painel {self.r}' in quem(4700 + i)], [])
+
     def test_com_docs_vesta_sobe_e_responde_quem(self):
         self.arquivo('docs/vesta/specs/x.md', 'x')
         n = painel.porta(self.r)
