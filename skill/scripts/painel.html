@@ -382,22 +382,23 @@ const E={
 };
 const pad=n=>String(n).padStart(2,'0');
 function etapas(e,tipo){
-  const ol=$('etapas');ol.innerHTML='';
-  if(!e){$('cheio').style.width='0';$('pct').textContent='0';return}
+  const ol=$('etapas');
+  if(!e){pintar(ol,[]);$('cheio').style.width='0';$('pct').textContent='0';return}
   const xs=e.etapas,n=xs.length,feitas=xs.filter(x=>x.status==='feita').length;
   const atual=['rodando','pausada'].includes(tipo)?xs.find(x=>x.status!=='feita'):null;
-  const pc=n?Math.round(feitas/n*100):0;$('cheio').style.width=`calc(${pc}% - 6px)`;$('pct').textContent=pc;
-  $('meta-dir').textContent=`${feitas} / ${n} · vermelho → verde`;
+  const pc=n?Math.round(feitas/n*100):0;$('cheio').style.width=`calc(${pc}% - 6px)`;escreve($('pct'),pc,{troca:true});
+  escreve($('meta-dir'),`${feitas} / ${n} · vermelho → verde`);
   $('plano-cab').textContent='plano // '+(e.plano||'').split('/').pop();
-  xs.forEach(x=>{
+  pintar(ol,xs.map(x=>{
     const t=x.provas.teste,trav=x.status==='travada',feita=x.status==='feita',at=x===atual;
-    let p='<span class="micro">—</span>',sub='aguardando';
-    if(feita){p=`<span class="chip ok">verde</span><span class="micro">${esc((t.commit||'').slice(0,7))}</span>`;sub='prova de teste · ok'}
-    if(at){p=`<span class="chip vazado">${t.vermelho?'vermelho':'—'}</span><span class="micro">tent. ${t.tentativas}/8</span>`;sub='implementando'}
-    if(trav){p=`<span class="chip erro">travada</span><span class="micro">${t.tentativas}/8</span>`;sub='limite de tentativas'}
-    const li=document.createElement('li');li.className=(feita?'feita':'')+(at||trav?' atual':'');
-    li.innerHTML=`<span class="id">${pad(esc(x.id))}</span><span class="t">${esc(x.titulo)}<span class="micro">${sub}</span></span><span class="p">${p}</span>`;ol.append(li);
-  });
+    let p=[h('span',{class:'micro'},'—')],sub='aguardando';
+    if(feita){p=[h('span',{class:'chip ok'},'verde'),h('span',{class:'micro'},(t.commit||'').slice(0,7))];sub='prova de teste · ok'}
+    if(at){p=[h('span',{class:'chip vazado'},t.vermelho?'vermelho':'—'),h('span',{class:'micro'},`tent. ${t.tentativas}/8`)];sub='implementando'}
+    if(trav){p=[h('span',{class:'chip erro'},'travada'),h('span',{class:'micro'},`${t.tentativas}/8`)];sub='limite de tentativas'}
+    p.forEach(s=>{s.troca=true;s.pisca='troca'});
+    const cl=((feita?'feita':'')+(at||trav?' atual':'')).trim();
+    return com(h('li',{class:cl||null},h('span',{class:'id'},pad(x.id)),h('span',{class:'t'},h('span',{},x.titulo),com(h('span',{class:'micro'},sub),{troca:true})),h('span',{class:'p'},...p)),{k:'e'+x.id,pisca:'acende'});
+  }));
 }
 function arco(s){
   const g=$('arco'),cx=110,cy=112,r=92,alvo=Math.min(1,s.contexto/s.janela);
@@ -475,11 +476,10 @@ async function abrir(d){
 }
 function features(fs){
   $('feat-cab').textContent=`docs/vesta // ${fs.length} registros`;
-  const ul=$('features');ul.innerHTML='';
-  fs.forEach(f=>{const li=document.createElement('li');
-    const s=['spec','research',f.grill?'spec':null,'plano','mockup'].map((p,i)=>`<i${(i===2?f.grill:f[p])?' class="s"':''}></i>`).join('');
-    li.innerHTML=`<span class="micro">${esc(f.data)}</span><span class="n">${esc(f.topico.replace(/-/g,' '))}</span><span class="passos">${s}</span>`;
-    li.onclick=()=>{escolhida=f.topico;aberto=null;$('leitor').innerHTML='';$('trilha-cab').textContent='';rodada(D.rodada)};ul.append(li)});
+  pintar($('features'),fs.map(f=>{
+    const s=['spec','research',f.grill?'spec':null,'plano','mockup'].map((p,i)=>h('i',{class:(i===2?f.grill:f[p])?'s':null}));
+    return com(h('li',{},h('span',{class:'micro'},f.data),h('span',{class:'n'},f.topico.replace(/-/g,' ')),h('span',{class:'passos'},...s)),
+      {k:f.topico,onclick:()=>{escolhida=f.topico;aberto=null;$('leitor').innerHTML='';$('trilha-cab').textContent='';rodada(D.rodada)}})}));
 }
 function aba(tipo,e){
   // favicon: um arco por etapa em volta de um V; feitas na cor do estado, a atual meio acesa
@@ -506,7 +506,7 @@ function render(){
   document.querySelectorAll('[data-so]').forEach(x=>x.hidden=!x.dataset.so.split(' ').includes(tipo));
   document.querySelectorAll('[data-nao]').forEach(x=>x.hidden=x.dataset.nao.split(' ').includes(tipo));
   $('projeto').textContent=D.projeto;$('caminho').textContent=D.caminho;aba(tipo,e);
-  $('palavra').textContent=tipo==='fase'?D.momento.fase:m.p;$('desc').textContent=m.d;$('obs').textContent=D.momento.texto;
+  escreve($('palavra'),tipo==='fase'?D.momento.fase:m.p,{troca:true,realce:false});escreve($('desc'),m.d,{troca:true,realce:false});escreve($('obs'),D.momento.texto,{troca:true,realce:false});
   const pend=e&&e.etapas.find(x=>x.status!=='feita');
   $('chip').textContent=tipo==='fase'?'Rodada':tipo==='plano'?'Plano':tipo==='concluida'?`${e.etapas.length} / ${e.etapas.length}`:pend?'Etapa '+pad(pend.id):tipo==='ilegivel'?'Estado':'Livre';
   if(D.erro)$('erro').textContent='Estado ilegível · '+D.erro+' · o resto do painel continua valendo';
@@ -632,11 +632,11 @@ function dias(hh){
   const u=d.length-1,c=Math.floor((r0+u)/7),r=(r0+u)%7;
   xs.push(com(el('rect',{x:c*st-1,y:r*st-1,width:st,height:st,class:'s-forte'}),{k:'hoje'}));pintar(g,xs);
 }
-function seq(h){
-  const d=h.dias,on=!d.some(v=>v);vz('seq-w',on,'sem histórico ainda · aparece com o uso');if(on)return;
+function seq(hh){
+  const d=hh.dias,on=!d.some(v=>v);vz('seq-w',on,'sem histórico ainda · aparece com o uso');if(on)return;
   let s=0;for(let i=d.length-1;i>=0&&d[i]>0;i--)s++;let best=0,c=0;d.forEach(v=>{c=v?c+1:0;best=Math.max(best,c)});
-  $('seq-n').innerHTML=`${s}<small>${s===1?'DIA':'DIAS'}</small>`;
-  $('seq-bar').innerHTML=d.slice(-14).map(v=>`<i${v?' class="p"':''}></i>`).join('');$('seq-r').textContent=`recorde ${best}`;
+  const n=$('seq-n'),html=`${s}<small>${s===1?'DIA':'DIAS'}</small>`;if(n.innerHTML!==html){const tinha=n.innerHTML!=='—';n.innerHTML=html;if(tinha&&!abrindo)toca(n,'troca')}
+  pintar($('seq-bar'),d.slice(-14).map((v,i)=>com(h('i',{class:v?'p':null}),{pisca:'troca'})));escreve($('seq-r'),`recorde ${best}`);
 }
 function radar(fs){
   fs=fs.slice(0,8);const g=$('radar'),cx=110,cy=88,R=80,n=fs.length;vz('radar',!n,'nenhuma feature ainda');escreve($('radar-n'),n?`${n} ${n>1?'features':'feature'}`:'—');
@@ -663,15 +663,15 @@ function odo(s){
   const o=$('odo');if(o.children.length!==t.length){o.innerHTML=t.split('').map(()=>`<div class="d"><span>${[0,1,2,3,4,5,6,7,8,9].map(x=>`<i>${x}</i>`).join('')}</span></div>`).join('')}
   [...o.children].forEach((c,i)=>{c.classList.toggle('z',i<lead);c.firstChild.style.transform=`translateY(${-(+t[i])*44}px)`});
   o.setAttribute('aria-label',`${(e+s.saida).toLocaleString('pt-BR')} tokens na sessão`);
-  $('odo-e').textContent=`entrada ${k(e)}`;$('odo-s').textContent=`saída ${k(s.saida)}`;
+  escreve($('odo-e'),`entrada ${k(e)}`);escreve($('odo-s'),`saída ${k(s.saida)}`);
 }
 function provas(e){
   const xs=e?e.etapas:[],on=!xs.length;vz('prov-w',on,'sem execução · aparece ao rodar a vesta');if(on)return;
-  const at=xs.find(x=>x.status!=='feita'&&x.status!=='travada'),cl=x=>x.status==='feita'?'p':x.status==='travada'?'t':x===at&&x.provas.teste.vermelho?'a':'';
+  const at=xs.find(x=>x.status!=='feita'&&x.status!=='travada'),cl=x=>x.status==='feita'?'p':x.status==='travada'?'t':x===at&&x.provas.teste.vermelho?'a':null;
   const tent=xs.reduce((a,x)=>a+(x.provas.teste.tentativas||0),0),ok=xs.filter(x=>x.status==='feita').length,tr=xs.filter(x=>x.status==='travada').length;
-  $('prov').innerHTML=xs.map(x=>`<i class="${cl(x)}"></i>`).join('');
+  pintar($('prov'),xs.map(x=>com(h('i',{class:cl(x)}),{k:x.id,pisca:'troca'})));
   $('prov').setAttribute('aria-label',`${ok} de ${xs.length} etapas com prova verde${tr?`, ${tr} travada`:''}`);
-  $('prov-a').textContent=`${ok} passou${tr?` · ${tr} travada`:''}`;$('prov-b').textContent=`${tent} tentativas`;
+  escreve($('prov-a'),`${ok} passou${tr?` · ${tr} travada`:''}`);escreve($('prov-b'),`${tent} tentativas`);
 }
 function relogio(hh){
   const g=$('rel'),v=hh.horas,max=Math.max(...v),cx=110,cy=80,r0=34;vz('rel',!max,'sem histórico ainda · aparece com o uso');escreve($('rel-p'),max?`pico ${pad(v.indexOf(max))}h`:'—');
@@ -691,16 +691,15 @@ function rodada(r){
   const aviso=$('rodada-aviso'),cols=$('rodada-cols');
   const ft=feature(),velha=antiga();
   $('rodada-cab').textContent=velha?`${ft.topico.replace(/-/g,' ')} // ${ft.data}`:r&&r.sessoes&&r.sessoes.length?`${r.sessoes.length} ${r.sessoes.length>1?'sessões costuradas':'sessão'} // desde ${r.inicio}`:'';
-  const ol=$('fases');ol.innerHTML='';
+  const ol=$('fases');
   const fs=velha?Object.keys(NOMES).map(id=>({id,estado:docDe(ft,DOC_FASE[id])?'feita':'pendente'})):r&&r.fases||Object.keys(NOMES).map(f=>({id:f,estado:'pendente'}));
-  fs.forEach(f=>{
-    const li=document.createElement('li');li.className=f.estado;
+  pintar(ol,fs.map(f=>{
     const d=DOC_FASE[f.id],c=docDe(ft,d);
     const sub={feita:f.hora||(c?'ler':'—'),atual:'agora'+(f.hora?' · '+f.hora:''),pulada:'pulada',pendente:'—'}[f.estado];
-    const dentro=`<b>${NOMES[f.id]}</b><span class="micro">${esc(sub)}</span>`;
-    if(c){li.innerHTML=`<button type="button" data-doc="${d}" aria-pressed="${aberto===d}" title="Abrir ${NOMES[f.id]}">${dentro}</button>`;li.firstChild.onclick=()=>abrir(d)}
-    else li.innerHTML=dentro;
-    if(f.estado==='atual')li.setAttribute('aria-current','step');ol.append(li)});
+    const dentro=[h('b',{},NOMES[f.id]),com(h('span',{class:'micro'},sub),{troca:true})];
+    const li=h('li',{class:f.estado,'aria-current':f.estado==='atual'?'step':null},
+      c?com(h('button',{type:'button','data-doc':d,'aria-pressed':String(aberto===d),title:'Abrir '+NOMES[f.id]},...dentro),{onclick:()=>abrir(d)}):null,...(c?[]:dentro));
+    return com(li,{k:f.id,pisca:'acende'})}));
   if(velha){aviso.hidden=true;cols.hidden=true;return}
   const msg={sem:'Sem registro de sessão · a rodada aparece quando a Vesta for ativada neste projeto',
     desconhecido:'Registro em formato desconhecido · fase, histórico e atividade fora do ar · responder pelo painel continua',
@@ -709,16 +708,12 @@ function rodada(r){
   if(msg)return;
   $('hist-cab').textContent=`${r.historico.filter(h=>h.tipo!=='mensagem').length} perguntas`;
   $('ativ-cab').textContent=`${r.atividade.length} de ${r.n_atividade}`;
-  const h=$('hist');h.innerHTML='';
-  r.historico.forEach(x=>{const li=document.createElement('li');
-    if(x.tipo==='mensagem'){li.innerHTML=`<div class="meta-h"><span class="micro">${esc(x.hora)} · vesta</span></div><p class="msg">${esc(x.texto)}</p>`}
-    else{li.className=x.resposta==null?'pend':'';
-      const r2=x.resposta==null?`<div class="r">esperando resposta</div>`:x.livre?`<div class="r livre-r">${esc(x.resposta)}<em>livre</em></div>`:`<div class="r">${esc(x.resposta)}</div>`;
-      li.innerHTML=`<div class="meta-h"><span class="micro">${esc(x.hora)}</span><span class="chip vazado">${esc(x.header)}</span>${x.onde?`<span class="micro">via ${esc(x.onde)}</span>`:''}</div><p class="q">${esc(x.pergunta)}</p>${r2}`}
-    h.append(li)});
-  const a=$('ativ');a.innerHTML='';
-  r.atividade.forEach(x=>{const li=document.createElement('li');
-    li.innerHTML=`<span class="h">${esc(x.hora)}</span><span class="f" title="${esc(x.ferramenta)}">${esc(x.ferramenta)}</span><span class="a">${esc(x.alvo)}</span>`;a.append(li)});
+  pintar($('hist'),r.historico.map((x,i)=>{
+    if(x.tipo==='mensagem')return com(h('li',{},h('div',{class:'meta-h'},h('span',{class:'micro'},x.hora+' · vesta')),h('p',{class:'msg'},x.texto)),{k:'h'+i});
+    const r2=x.resposta==null?h('div',{class:'r'},'esperando resposta'):x.livre?h('div',{class:'r livre-r'},h('span',{},x.resposta),h('em',{},'livre')):h('div',{class:'r'},x.resposta);
+    return com(h('li',{class:x.resposta==null?'pend':null},h('div',{class:'meta-h'},h('span',{class:'micro'},x.hora),h('span',{class:'chip vazado'},x.header),x.onde?h('span',{class:'micro'},'via '+x.onde):null),
+      h('p',{class:'q'},x.pergunta),com(r2,{k:'r',troca:true})),{k:'h'+i,pisca:'acende'})}));
+  pintar($('ativ'),r.atividade.map((x,i)=>com(h('li',{},h('span',{class:'h'},x.hora),h('span',{class:'f',title:x.ferramenta},x.ferramenta),h('span',{class:'a'},x.alvo)),{k:r.n_atividade-i})));
 }
 let piscar=false,atual=null;
 function pergunta(ps){
