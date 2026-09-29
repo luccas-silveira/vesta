@@ -1896,5 +1896,122 @@ class FaixaUnicaNoNavegador(unittest.TestCase):
         self.assertFalse(out['cols_ocultas'])
 
 
+# Animações do painel, etapa 1 — a simulação roda o render() inteiro com um painel em execução.
+ETAPA = lambda i, titulo, status, vermelho=None, commit=None, tent=0: {
+    'id': i, 'titulo': titulo, 'tela': False, 'status': status,
+    'provas': {'teste': {'vermelho': vermelho, 'resultado': 'verde' if commit else None,
+                         'commit': commit, 'tentativas': tent}}}
+FEAT_TERCEIRA = {'topico': 'rodada-ao-vivo', 'data': '2026-09-10',
+                 'spec': 'docs/vesta/specs/2026-09-10-rodada-ao-vivo-design.md', 'research': None,
+                 'plano': None, 'mockup': None, 'grill': False}
+ENTRADA = [18_000 + 3_500 * i for i in range(22)]
+PAINEL_RODANDO = {
+    'projeto': 'vesta', 'caminho': '~/Code/vesta',
+    'momento': {'tipo': 'rodando', 'texto': 'Rodando na etapa 2 de 4'},
+    'estado': {'versao': 1, 'plano': 'docs/vesta/plans/2026-09-29-animacoes-do-painel.md', 'espera': None,
+               'motivo': None, 'etapas': [
+                   ETAPA('1', 'Simulação de página que roda o painel inteiro', 'feita', 'f00dbee', 'abc1234def', 1),
+                   ETAPA('2', 'Motor de movimento e gráficos reaproveitados', 'pendente', 'c0ffee1', None, 2),
+                   ETAPA('3', 'Listas, células e rótulos reaproveitados', 'pendente'),
+                   ETAPA('4', 'Entrada escalonada dos blocos', 'pendente')]},
+    'erro': None,
+    'features': [FEAT_ATUAL, FEAT_VELHA, FEAT_TERCEIRA], 'atual': FEAT_ATUAL,
+    'tempos': {'1': 14.5, '2': None, '3': None, '4': None},
+    'sessao': {'inicio': '2026-09-29T12:00:00Z', 'fim': '2026-09-29T12:30:30Z', 'duracao_s': 1830,
+               'requests': len(ENTRADA), 'entrada': ENTRADA, 'saida': 5_400,
+               'ferramentas': [['Bash', 12], ['Read', 9], ['Edit', 4], ['Grep', 2]],
+               'contexto': ENTRADA[-1], 'ritmo': [i % 6 for i in range(48)], 'janela': 200_000},
+    'rodada': dict(RODADA_VIVA,
+                   historico=[{'tipo': 'mensagem', 'texto': 'Começando o grill', 'hora': '09:20'},
+                              {'header': 'Escopo', 'pergunta': 'Anima o odômetro?', 'hora': '09:21',
+                               'resposta': 'Sim', 'onde': 'painel', 'livre': False},
+                              {'header': 'Ritmo', 'pergunta': 'Quanto dura a entrada?', 'hora': '09:24',
+                               'resposta': None, 'onde': 'terminal', 'livre': False}],
+                   atividade=[{'hora': '09:25', 'ferramenta': 'Read', 'alvo': 'painel.html'},
+                              {'hora': '09:24', 'ferramenta': 'Grep', 'alvo': 'requestAnimationFrame'},
+                              {'hora': '09:23', 'ferramenta': 'Bash', 'alvo': 'git log'}],
+                   n_atividade=7),
+    'hist': {'dias': [i % 5 for i in range(140)], 'horas': [h % 7 for h in range(24)]},
+}
+
+
+@unittest.skipUnless(shutil.which('node'), 'node ausente')
+class PainelInteiroNoNavegador(unittest.TestCase):
+    """Interface que o teste espera do HARNESS no modo novo.
+
+    Cenário (JSON em argv[2]): {'modo': 'render', 'D': <estado de /estado>, 'ids': [<id>, ...]}.
+    Sem 'modo' (ou 'modo': 'rodada') o HARNESS segue como hoje, para FaixaUnicaNoNavegador.
+    No modo 'render' ele define D e chama render() (não rodada()), e escreve no stdout:
+      {'raf': typeof requestAnimationFrame, 'caf': typeof cancelAnimationFrame  (avaliados dentro da página),
+       'ids': {<id>: {'n': <nº de filhos em children>, 'filhos': [<outer de cada filho>, ...]}}}
+    Um erro no render() deixa o node com código de saída diferente de zero.
+    """
+    GRAFICOS = ['arco', 'pontos', 'colunas', 'ferr', 'dias', 'radar', 'onda', 'rel']
+    LISTAS = ['etapas', 'fases', 'hist', 'ativ']
+
+    def rodar(self, D=PAINEL_RODANDO):
+        cen = {'modo': 'render', 'D': D, 'ids': self.GRAFICOS + self.LISTAS}
+        p = subprocess.run(['node', '-e', HARNESS, os.path.join(AQUI, 'painel.html'), json.dumps(cen)],
+                           capture_output=True, text=True, timeout=30)
+        self.assertEqual(p.returncode, 0, f'render() falhou na simulação:\n{p.stderr}')
+        return json.loads(p.stdout)
+
+    def test_render_completo_roda_sem_erro(self):
+        out = self.rodar()
+        self.assertIn('ids', out, 'a simulação não tem o modo render')
+        self.assertEqual(set(out['ids']), set(self.GRAFICOS + self.LISTAS))
+
+    def test_cada_grafico_desenha_algo(self):
+        ids = self.rodar()['ids']
+        for g in self.GRAFICOS:
+            with self.subTest(g):
+                self.assertGreaterEqual(ids[g]['n'], 1, f'#{g} ficou vazio')
+                self.assertEqual(len(ids[g]['filhos']), ids[g]['n'])
+                self.assertRegex(ids[g]['filhos'][0], r'^<\w+', f'#{g}: filho sem outer')
+
+    def test_etapas_um_item_por_etapa_na_ordem(self):
+        e = self.rodar()['ids']['etapas']
+        xs = PAINEL_RODANDO['estado']['etapas']
+        self.assertEqual(e['n'], len(xs))
+        for li, x in zip(e['filhos'], xs):
+            with self.subTest(x['id']):
+                self.assertIn(x['titulo'], li)
+        self.assertIn('abc1234', e['filhos'][0])           # feita: commit curto
+        self.assertIn('implementando', e['filhos'][1])     # atual
+        self.assertIn('tent. 2/8', e['filhos'][1])
+        for li in e['filhos'][2:]:
+            self.assertIn('aguardando', li)                # pendentes
+
+    def test_fases_uma_por_fase_da_rodada(self):
+        f = self.rodar()['ids']['fases']
+        fases = PAINEL_RODANDO['rodada']['fases']
+        self.assertEqual(f['n'], len(fases))
+        nomes = ['Ativação', 'Spec', 'Pesquisa', 'Grill', 'Mockup', 'Plano', 'Execução', 'Concluída']
+        for li, nome in zip(f['filhos'], nomes):
+            with self.subTest(nome):
+                self.assertIn(f'<b>{nome}</b>', li)
+
+    def test_historico_um_item_por_entrada(self):
+        h = self.rodar()['ids']['hist']
+        hist = PAINEL_RODANDO['rodada']['historico']
+        self.assertEqual(h['n'], len(hist))
+        for li, x in zip(h['filhos'], hist):
+            with self.subTest(x['hora']):
+                self.assertIn(x.get('pergunta') or x['texto'], li)
+
+    def test_atividade_um_item_por_entrada(self):
+        a = self.rodar()['ids']['ativ']
+        ativ = PAINEL_RODANDO['rodada']['atividade']
+        self.assertEqual(a['n'], len(ativ))
+        for li, x in zip(a['filhos'], ativ):
+            with self.subTest(x['alvo']):
+                self.assertIn(x['alvo'], li)
+
+    def test_pagina_sem_requestanimationframe(self):
+        out = self.rodar()
+        self.assertEqual(out.get('raf'), 'undefined', 'a simulação ainda define requestAnimationFrame')
+        self.assertEqual(out.get('caf'), 'undefined', 'a simulação ainda define cancelAnimationFrame')
+
+
 if __name__ == '__main__':
     unittest.main()
