@@ -1,9 +1,11 @@
 """Testes do vesta.py. Cada teste monta um repositório git descartável."""
+import http.server
 import json
 import os
 import socket
 import subprocess
 import tempfile
+import threading
 import time
 import unittest
 import urllib.request
@@ -770,8 +772,8 @@ class ConcluirTela(ComMockup):
         self.assertEqual(self.status('2'), 'feita')
 
 
-class Aberto(Base):
-    """`vesta.py aberto <cwd>`: 0 com a página do painel da raiz aberta; 1 no resto; mudo."""
+class ComPainel(Base):
+    """Servidor real do painel da raiz, em subprocesso, na porta da raiz."""
     PRAZO = 1.5  # VESTA_PRAZO_ABERTO do servidor de teste (padrão real: 10 s)
 
     def setUp(self):
@@ -781,10 +783,13 @@ class Aberto(Base):
         self.fora = tempfile.TemporaryDirectory()  # cwd do processo: o comando usa o argumento
         self.addCleanup(self.fora.cleanup)
 
-    def servir(self):
-        if self.escuta():
-            self.skipTest(f'porta {self.porta} já ocupada nesta máquina')
-        env = {**ENV, 'VESTA_PRAZO_ABERTO': str(self.PRAZO)}
+    def servir(self, env=None, **prazos):
+        for _ in range(100):  # porta da raiz ocupada por outro painel: a seguinte, como achar()
+            if not self.escuta():
+                break
+            self.porta = 4700 + (self.porta - 4700 + 1) % 100
+        env = {**(env or ENV), 'VESTA_PRAZO_ABERTO': str(self.PRAZO),
+               **{f'VESTA_PRAZO_{k.upper()}': str(v) for k, v in prazos.items()}}
         p = subprocess.Popen(['python3', os.path.join(AQUI, 'painel.py'), 'servir', self.r,
                               str(self.porta)], env=env,
                              stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
@@ -795,6 +800,7 @@ class Aberto(Base):
             if time.time() > fim:
                 self.fail('servidor não abriu a porta')
             time.sleep(0.05)
+        return p
 
     def escuta(self):
         try:
@@ -805,6 +811,10 @@ class Aberto(Base):
 
     def estado(self):
         urllib.request.urlopen(f'http://127.0.0.1:{self.porta}/estado', timeout=5).read()
+
+
+class Aberto(ComPainel):
+    """`vesta.py aberto <cwd>`: 0 com a página do painel da raiz aberta; 1 no resto; mudo."""
 
     def aberto(self, cwd=None):
         p = self.sf('aberto', cwd or self.r, cwd=self.fora.name)
@@ -839,6 +849,254 @@ class Aberto(Base):
         self.assertEqual(self.aberto(os.path.join(self.r, 'nao-existe', 'x')), 1)
         p = self.sf('aberto', cwd=self.fora.name)  # sem argumento
         self.assertEqual((p.returncode, p.stdout, p.stderr), (1, '', ''))
+
+
+def porta_livre():
+    with socket.socket() as s:
+        s.bind(('127.0.0.1', 0))
+        return s.getsockname()[1]
+
+
+class Knobler:
+    """Knobler falso: POST /ask, GET /ask/<id>, POST /ask/<id>/cancel; registra os pedidos."""
+
+    def __init__(self):
+        self.pedidos = []  # (método, caminho, corpo JSON ou None)
+        self.estados = {}  # id -> o que GET /ask/<id> devolve
+        dono = self
+
+        class H(http.server.BaseHTTPRequestHandler):
+            def log_message(self, *a):
+                pass
+
+            def devolver(self, d):
+                corpo = json.dumps(d).encode()
+                self.send_response(200)
+                self.send_header('Content-Type', 'application/json')
+                self.send_header('Content-Length', str(len(corpo)))
+                self.end_headers()
+                self.wfile.write(corpo)
+
+            def do_POST(self):
+                bruto = self.rfile.read(int(self.headers.get('Content-Length') or 0))
+                try:
+                    corpo = json.loads(bruto) if bruto else None
+                except ValueError:
+                    corpo = None
+                dono.pedidos.append(('POST', self.path, corpo))
+                self.devolver({'ok': True})
+
+            def do_GET(self):
+                dono.pedidos.append(('GET', self.path, None))
+                self.devolver(dono.estados.get(self.path.rsplit('/', 1)[-1],
+                                               {'answered': False, 'cancelled': False}))
+
+        self.srv = http.server.ThreadingHTTPServer(('127.0.0.1', 0), H)
+        self.srv.daemon_threads = True
+        self.porta = self.srv.server_address[1]
+        threading.Thread(target=self.srv.serve_forever, daemon=True).start()
+
+    def fechar(self):
+        self.srv.shutdown()
+        self.srv.server_close()
+
+    def posts(self, caminho):
+        return [c for m, p, c in list(self.pedidos) if m == 'POST' and p == caminho]
+
+
+Q = [{'question': 'Quais cores?', 'header': 'Cores', 'multiSelect': True,
+      'options': [{'label': 'Azul', 'description': 'a'}, {'label': 'Verde', 'description': 'v'}]},
+     {'question': 'Qual nome?', 'header': 'Nome', 'multiSelect': False,
+      'options': [{'label': 'Vesta', 'description': 'v'}, {'label': 'Juno', 'description': 'j'}]}]
+RESP = {'Quais cores?': {'labels': ['Azul', 'Verde'], 'text': ''},
+        'Qual nome?': {'labels': ['Vesta'], 'text': 'Héstia'}}  # texto livre vence os rótulos
+ESPERADO = {'Quais cores?': 'Azul, Verde', 'Qual nome?': 'Héstia'}
+
+
+class Menu(ComPainel):
+    """`vesta.py hook-menu` (PreToolUse de AskUserQuestion): painel e Knobler, vale a 1ª resposta."""
+    ID = 'menu-tu1'
+
+    def setUp(self):
+        super().setUp()
+        self.home = tempfile.TemporaryDirectory()
+        self.addCleanup(self.home.cleanup)
+        # KNOBLER_PORT sempre definido: nunca a porta real 4477. Porta livre = Knobler fora do ar.
+        self.env = {**ENV, 'HOME': self.home.name, 'KNOBLER_PORT': str(porta_livre()),
+                    'VESTA_INTERVALO_MENU': '0.2'}
+
+    def knobler(self):
+        k = Knobler()
+        self.addCleanup(k.fechar)
+        self.env['KNOBLER_PORT'] = str(k.porta)
+        return k
+
+    def abrir(self, **prazos):
+        """Painel no ar com a página aberta (um GET /estado)."""
+        srv = self.servir(env=self.env, **prazos)
+        self.estado()
+        return srv
+
+    def menu(self):
+        p = subprocess.Popen(['python3', SCRIPT, 'hook-menu'], cwd=self.r, env=self.env,
+                             stdin=subprocess.PIPE, stdout=subprocess.PIPE,
+                             stderr=subprocess.PIPE, text=True)
+        self.addCleanup(lambda: p.poll() is None and p.kill())
+        p.stdin.write(json.dumps({'session_id': 's1', 'cwd': self.r, 'hook_event_name': 'PreToolUse',
+                                  'tool_name': 'AskUserQuestion', 'tool_use_id': 'tu1',
+                                  'tool_input': {'questions': Q}}))
+        p.stdin.close()
+        return p
+
+    def fim(self, p, prazo=8):
+        try:
+            p.wait(timeout=prazo)
+        except subprocess.TimeoutExpired:
+            self.fail(f'o hook não saiu em {prazo} s')
+        err = p.stderr.read()
+        self.assertEqual(p.returncode, 0, err)
+        return p.stdout.read()
+
+    def saida(self, answers):
+        return {'hookSpecificOutput': {'hookEventName': 'PreToolUse', 'permissionDecision': 'allow',
+                                       'updatedInput': {'questions': Q, 'answers': answers}}}
+
+    def get(self, caminho):
+        with urllib.request.urlopen(f'http://127.0.0.1:{self.porta}{caminho}', timeout=5) as r:
+            return json.loads(r.read())
+
+    def pergunta(self):
+        return self.get(f'/pergunta/{self.ID}')['estado']
+
+    def responder(self):
+        req = urllib.request.Request(f'http://127.0.0.1:{self.porta}/resposta/{self.ID}',
+                                     data=json.dumps({'answers': RESP}).encode(), method='POST')
+        urllib.request.urlopen(req, timeout=5).read()
+
+    def ate(self, cond, oque, prazo=5):
+        fim = time.time() + prazo
+        while not cond():
+            if time.time() > fim:
+                self.fail(f'esperando {oque}')
+            time.sleep(0.05)
+
+    def no_painel(self):
+        self.ate(lambda: self.pergunta() != 'desconhecida', 'a pergunta no painel')
+
+    def no_knobler(self, k):
+        self.ate(lambda: k.posts('/ask'), 'a pergunta no Knobler')
+
+    def respostas(self):
+        caminho = os.path.join(self.home.name, '.claude', 'vesta', 'respostas.jsonl')
+        with open(caminho) as f:
+            return [{k: l[k] for k in ('tool_use_id', 'onde')} for l in map(json.loads, f)]
+
+    def cancelou(self, k):
+        return bool(k.posts(f'/ask/{self.ID}/cancel'))
+
+    def test_sem_painel_sai_mudo_rapido_sem_tocar_no_knobler(self):
+        k = self.knobler()
+        t = time.time()
+        self.assertEqual(self.fim(self.menu(), prazo=5), '')
+        self.assertLess(time.time() - t, 2)
+        self.assertEqual(k.pedidos, [])
+
+    def test_painel_sem_pagina_aberta_sai_mudo_rapido_sem_tocar_no_knobler(self):
+        k = self.knobler()
+        self.servir(env=self.env)  # no ar, mas nenhum GET /estado: aberto false
+        t = time.time()
+        self.assertEqual(self.fim(self.menu(), prazo=5), '')
+        self.assertLess(time.time() - t, 2)
+        self.assertEqual(k.pedidos, [])
+        self.assertEqual(self.pergunta(), 'desconhecida')
+
+    def test_resposta_no_painel_sem_knobler_sai_como_allow_com_answers(self):
+        self.abrir()
+        p = self.menu()
+        self.no_painel()
+        self.assertEqual(self.get('/estado')['perguntas'],
+                         [{'id': self.ID, 'questions': Q, 'knobler': False, 'estado': 'pendente'}])
+        self.assertIsNone(p.poll())  # espera a resposta
+        self.responder()
+        self.assertEqual(json.loads(self.fim(p)), self.saida(ESPERADO))
+        self.assertEqual(self.respostas(), [{'tool_use_id': 'tu1', 'onde': 'painel'}])
+
+    def test_knobler_no_ar_recebe_mesmo_id_e_source_e_sua_resposta_encerra_o_painel(self):
+        k = self.knobler()
+        self.abrir()
+        p = self.menu()
+        self.no_knobler(k)
+        self.no_painel()
+        ask = k.posts('/ask')[0]
+        self.assertEqual({c: ask.get(c) for c in ('id', 'source', 'questions')},
+                         {'id': self.ID, 'source': os.path.basename(self.r), 'questions': Q})
+        self.assertTrue(self.get('/estado')['perguntas'][0]['knobler'])
+        k.estados[self.ID] = {'answered': True, 'cancelled': False, 'answers': RESP}
+        self.assertEqual(json.loads(self.fim(p)), self.saida(ESPERADO))
+        self.assertEqual(self.pergunta(), 'encerrada')
+        self.assertEqual(self.respostas(), [{'tool_use_id': 'tu1', 'onde': 'knobler'}])
+
+    def test_resposta_no_painel_cancela_no_knobler(self):
+        k = self.knobler()
+        self.abrir()
+        p = self.menu()
+        self.no_knobler(k)
+        self.no_painel()
+        self.assertFalse(self.cancelou(k))
+        self.responder()
+        self.assertEqual(json.loads(self.fim(p)), self.saida(ESPERADO))
+        self.assertTrue(self.cancelou(k))
+        self.assertEqual(self.respostas(), [{'tool_use_id': 'tu1', 'onde': 'painel'}])
+
+    def test_knobler_cancelado_segue_esperando_o_painel(self):
+        k = self.knobler()
+        self.abrir()
+        p = self.menu()
+        self.no_knobler(k)
+        self.no_painel()
+        k.estados[self.ID] = {'answered': False, 'cancelled': True}
+        time.sleep(1.5)
+        self.assertIsNone(p.poll(), 'o hook desistiu com o ✕ do Knobler')
+        self.responder()
+        self.assertEqual(json.loads(self.fim(p)), self.saida(ESPERADO))
+
+    def test_painel_abandonado_segue_esperando_o_knobler_que_recebeu(self):
+        k = self.knobler()
+        self.abrir(abandono=1)
+        p = self.menu()
+        self.no_knobler(k)
+        self.ate(lambda: self.pergunta() == 'abandonada', 'o painel abandonar a pergunta')
+        time.sleep(1.5)
+        self.assertIsNone(p.poll(), 'o hook desistiu com o Knobler ainda esperando')
+        k.estados[self.ID] = {'answered': True, 'cancelled': False, 'answers': RESP}
+        self.assertEqual(json.loads(self.fim(p)), self.saida(ESPERADO))
+        self.assertEqual(self.respostas(), [{'tool_use_id': 'tu1', 'onde': 'knobler'}])
+
+    def test_painel_abandonado_sem_knobler_sai_mudo(self):
+        self.abrir(abandono=1)
+        p = self.menu()
+        self.assertEqual(self.fim(p, prazo=6), '')
+        self.assertNotEqual(self.pergunta(), 'desconhecida')  # postou antes de desistir
+
+    def test_prazo_do_menu_cancela_no_knobler_e_sai_mudo(self):
+        self.env['VESTA_PRAZO_MENU'] = '1.5'
+        k = self.knobler()
+        self.abrir()
+        p = self.menu()
+        self.no_knobler(k)
+        self.assertEqual(self.fim(p, prazo=6), '')
+        self.assertTrue(self.cancelou(k))
+
+    def test_erro_de_rede_no_painel_cancela_no_knobler_e_sai_mudo(self):
+        k = self.knobler()
+        srv = self.abrir()
+        p = self.menu()
+        self.no_knobler(k)
+        self.no_painel()
+        srv.kill()
+        srv.wait()
+        self.assertEqual(self.fim(p, prazo=6), '')
+        self.assertTrue(self.cancelou(k))
 
 
 if __name__ == '__main__':
