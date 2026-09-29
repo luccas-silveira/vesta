@@ -16,7 +16,7 @@
   --chao:oklch(0.16 0 0); --chao-2:oklch(0.135 0 0); --placa:oklch(0.20 0 0 / 0.6);
   --traco:oklch(0.62 0 0 / 0.28); --traco-forte:oklch(0.72 0 0 / 0.55); --ponto:oklch(0.70 0 0 / 0.22);
   --tinta:oklch(0.93 0 0); --tinta-2:oklch(0.76 0 0); --tinta-3:oklch(0.56 0 0);
-  --verde:oklch(0.80 0.14 152); --ambar:oklch(0.82 0.14 85); --coral:oklch(0.70 0.15 28); --ciano:oklch(0.80 0.10 215);
+  --verde:#ff4d00; --ambar:oklch(0.82 0.14 85); --coral:oklch(0.93 0 0); --ciano:#ff4d00;
   --acento:var(--verde);
   --f-display:Rajdhani,"Eurostile",ui-sans-serif,sans-serif;
   --f-micro:"IBM Plex Mono",ui-monospace,Menlo,monospace;
@@ -58,7 +58,7 @@ main{position:relative}
 .linha-topo{margin:0 28px;position:relative;z-index:1}
 
 main{position:relative;z-index:1;display:grid;grid-template-columns:minmax(200px,250px) minmax(0,1fr) minmax(200px,250px);gap:36px;padding:26px 28px}
-@media (max-width:1100px){main{grid-template-columns:minmax(0,1fr)}.lado{display:grid!important;grid-template-columns:repeat(auto-fit,minmax(220px,1fr))}}
+@media (max-width:1100px){main{grid-template-columns:minmax(0,1fr)}body.perguntando .centro{order:-1}.lado{display:grid!important;grid-template-columns:repeat(auto-fit,minmax(220px,1fr))}}
 
 /* instrumentos laterais: sem fundo, cabeçalho com régua, microtexto */
 .lado{display:flex;flex-direction:column;gap:34px}
@@ -129,6 +129,76 @@ svg text{font:500 8.5px var(--f-micro);fill:var(--tinta-3);letter-spacing:.06em}
 .aviso{display:flex;gap:10px;align-items:center;margin-top:18px;padding:8px 10px;box-shadow:inset 0 0 0 1px var(--coral);color:var(--coral);font:500 11px var(--f-micro);letter-spacing:.06em;text-transform:uppercase}
 .aviso::before{content:"";width:22px;height:8px;flex:none;background:repeating-linear-gradient(-55deg,var(--coral) 0 4px,transparent 4px 7px)}
 
+/* rodada: pergunta pendente, faixa de fases, histórico e atividade */
+body[data-estado=fase]{--acento:var(--verde)} body.perguntando{--acento:var(--ciano)}
+.pergunta{margin-top:26px;padding:20px 22px 18px;box-shadow:inset 0 0 0 1px var(--ciano);position:relative;background:color-mix(in oklch,var(--ciano) 6%,transparent)}
+.pergunta::before{content:"";position:absolute;left:-1px;top:-1px;width:22px;height:4px;background:var(--ciano)}
+#p-origem{text-transform:none;letter-spacing:.02em}
+.pergunta .topo-p{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:10px}
+.pergunta .chip{background:var(--ciano)}
+.pergunta legend{font:400 22px/1.3 var(--f-leitura);color:var(--tinta);max-width:60ch;margin-bottom:14px;padding:0}
+.pergunta fieldset{border:0;min-width:0}
+.opcoes{display:grid;gap:6px}
+.opcao{display:grid;grid-template-columns:22px minmax(0,1fr);gap:4px 12px;align-items:start;padding:11px 12px;min-height:44px;cursor:pointer;box-shadow:inset 0 0 0 1px var(--traco-forte)}
+.opcao:hover{box-shadow:inset 0 0 0 1px var(--tinta-2)}
+.opcao input{appearance:none;width:16px;height:16px;margin:2px 0 0;border:1px solid var(--tinta-2);display:grid;place-content:center;cursor:pointer}
+.opcao input[type=radio]{border-radius:50%}
+.opcao input:checked{border-color:var(--ciano);background:var(--ciano)}
+.opcao input:checked::after{content:"";width:6px;height:6px;background:var(--chao-2);border-radius:inherit}
+.opcao input:focus-visible{outline:2px solid var(--tinta);outline-offset:3px}
+.opcao:has(input:checked){box-shadow:inset 0 0 0 1px var(--ciano);background:color-mix(in oklch,var(--ciano) 10%,transparent)}
+.opcao b{font:500 16px/1.3 var(--f-leitura);color:var(--tinta)}
+.opcao span{grid-column:2;font:400 14px/1.5 var(--f-leitura);color:var(--tinta-2)}
+.livre{margin-top:14px;display:grid;gap:6px}
+.livre label{font:500 11px/1 var(--f-micro);letter-spacing:.08em;text-transform:uppercase;color:var(--tinta-2)}
+.livre textarea{font:400 16px/1.5 var(--f-leitura);color:var(--tinta);background:var(--chao-2);border:0;box-shadow:inset 0 0 0 1px var(--traco-forte);padding:10px 12px;min-height:64px;resize:vertical}
+.livre textarea:focus-visible{outline:2px solid var(--ciano);outline-offset:0}
+.livre .ajuda{font:400 13px/1.4 var(--f-leitura);color:var(--tinta-2);min-height:1.4em}
+.acoes{display:flex;gap:14px;align-items:center;margin-top:14px;flex-wrap:wrap}
+.enviar{all:unset;cursor:pointer;min-height:44px;padding:0 20px;display:inline-flex;align-items:center;gap:8px;background:var(--ciano);color:var(--chao-2);font:600 14px/1 var(--f-display);letter-spacing:.16em;text-transform:uppercase}
+.enviar:hover{background:color-mix(in oklch,var(--ciano) 85%,white)}
+.enviar:active{transform:translateY(1px)}
+.enviar:focus-visible{outline:2px solid var(--tinta);outline-offset:3px}
+.enviar:disabled,.enviar[aria-disabled=true]{opacity:.4;cursor:default}
+.status-p{font:500 11px/1.4 var(--f-micro);letter-spacing:.06em;text-transform:uppercase;color:var(--tinta-2)}
+.status-p.erro{color:var(--coral)} .status-p.ok{color:var(--verde)}
+.fila{margin-left:auto}
+
+.fases{list-style:none;display:grid;grid-template-columns:repeat(8,minmax(0,1fr));gap:4px;margin-top:4px}
+@media (max-width:700px){.fases{grid-template-columns:repeat(4,minmax(0,1fr))}}
+.fases li{padding:8px 8px 7px;box-shadow:inset 0 0 0 1px var(--traco);min-width:0}
+.fases b{display:block;font:600 12px/1 var(--f-display);letter-spacing:.12em;text-transform:uppercase;color:var(--tinta-2)}
+.fases .pendente{box-shadow:inset 0 0 0 1px var(--traco);background:none} .fases .pendente b{font-weight:400}
+.fases .micro{display:block;margin-top:5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.fases .feita{box-shadow:inset 0 0 0 1px var(--traco-forte)} .fases .feita b{color:var(--tinta)} .fases .feita b::before{content:'✓ ';color:var(--acento)}
+.fases .atual{background:var(--acento);box-shadow:none} .fases .atual b,#rodada .fases .atual .micro{color:var(--chao-2)}
+.fases .pulada b{text-decoration:line-through;text-decoration-thickness:1px}
+.fases .pulada{background:repeating-linear-gradient(-55deg,var(--traco) 0 1px,transparent 1px 7px)}
+
+.cols{display:grid;grid-template-columns:minmax(0,1.35fr) minmax(0,1fr);gap:28px;margin-top:22px}
+@media (max-width:760px){.cols{grid-template-columns:minmax(0,1fr)}}
+.cols h4{font:500 13px/1 var(--f-display);letter-spacing:.16em;text-transform:uppercase;color:var(--tinta-2);display:flex;justify-content:space-between;align-items:baseline;margin-bottom:8px}
+.lista{list-style:none;max-height:420px;overflow:auto;scrollbar-color:var(--traco-forte) transparent}
+.hist li{padding:10px 0 11px;border-bottom:1px solid var(--traco)}
+.hist .q{font:400 15px/1.5 var(--f-leitura);color:var(--tinta)}
+.hist .r{margin-top:4px;font:500 14px/1.45 var(--f-leitura);color:var(--acento);display:flex;gap:8px}
+.hist .r::before{content:"↳";color:var(--tinta-3)}
+.hist .r.livre-r{color:var(--tinta)} .hist .r.livre-r em{font-style:normal;color:var(--tinta-2);font:500 11px var(--f-micro);letter-spacing:.08em;text-transform:uppercase;align-self:center}
+.hist .msg{font:400 14px/1.55 var(--f-leitura);color:var(--tinta-2);max-width:62ch}
+.hist .pend .r{color:var(--ciano)}
+.hist .meta-h{display:flex;gap:8px;align-items:center;margin-bottom:4px}
+.ativ li{display:grid;grid-template-columns:44px 64px minmax(0,1fr);gap:8px;padding:6px 0;border-bottom:1px solid var(--traco);align-items:baseline}
+.ativ .h{font:400 11px var(--f-micro);color:var(--tinta-2);font-variant-numeric:tabular-nums}
+.ativ .f{font:500 11px var(--f-micro);color:var(--tinta-2);letter-spacing:.04em}
+.ativ .a{font:400 12px/1.4 var(--f-micro);color:var(--tinta);overflow-wrap:anywhere}
+.ativ li:first-child .f{color:var(--acento)}
+.aviso.ciano{box-shadow:inset 0 0 0 1px var(--tinta-3);color:var(--tinta-2)}
+.aviso.ciano::before{background:repeating-linear-gradient(-55deg,var(--tinta-3) 0 4px,transparent 4px 7px)}
+
+/* rodada: microtexto funcional ≥ 11px e em tinta-2 (o 9.5px do resto do painel fica como está) */
+.pergunta .micro,#rodada .micro,.hist .micro{font-size:11px;color:var(--tinta-2)}
+#rodada .fases .atual .micro{color:var(--chao-2)}
+
 .sessao-off .sessao{display:none!important}
 [hidden]{display:none!important}
 @keyframes pulso{50%{opacity:.35}}
@@ -169,12 +239,40 @@ svg text{font:500 8.5px var(--f-micro);fill:var(--tinta-3);letter-spacing:.06em}
       <h2 id="palavra">—</h2>
       <div class="sub"><span class="chip" id="chip">—</span><span class="desc" id="desc"></span><span class="micro" id="obs"></span></div>
     </section>
-    <div class="hachura" data-nao="vazio ilegivel"><div class="barra"><div class="cheio" id="cheio" style="width:0"></div></div><div class="pct" id="pct">0</div></div>
-    <div class="meta" data-nao="vazio ilegivel"><span class="micro">etapas com prova</span><span class="micro" id="meta-dir">—</span></div>
+    <div class="hachura" data-nao="vazio ilegivel fase"><div class="barra"><div class="cheio" id="cheio" style="width:0"></div></div><div class="pct" id="pct">0</div></div>
+    <div class="meta" data-nao="vazio ilegivel fase"><span class="micro">etapas com prova</span><span class="micro" id="meta-dir">—</span></div>
     <p class="aviso" data-so="ilegivel" id="erro">Estado ilegível · .claude/vesta/estado.json · o resto do painel continua valendo</p>
     <p class="aviso sessao-aviso" id="aviso-sessao" hidden>Sem registro de sessão · instrumentos da sessão fora do ar</p>
 
-    <div class="bloco" data-nao="vazio ilegivel">
+    <form class="pergunta" id="pergunta" hidden>
+      <div class="topo-p"><span class="chip" id="p-header">—</span><span class="micro" id="p-origem"></span><span class="micro fila" id="p-fila"></span></div>
+      <fieldset>
+        <legend id="p-texto">—</legend>
+        <div class="opcoes" id="p-opcoes"></div>
+      </fieldset>
+      <div class="livre">
+        <label for="p-livre">Outra resposta</label>
+        <textarea id="p-livre" rows="2"></textarea>
+        <span class="ajuda" id="p-ajuda">Escrever aqui substitui a opção marcada.</span>
+      </div>
+      <div class="acoes">
+        <button class="enviar" id="p-enviar" type="submit">Responder</button>
+        <span class="status-p" id="p-status" role="status"></span>
+      </div>
+    </form>
+
+    <div class="bloco" id="rodada">
+      <div class="cab"><h3>Rodada</h3><span class="micro" id="rodada-cab"></span></div>
+      <div class="regua" style="margin-bottom:10px"></div>
+      <ol class="fases" id="fases"></ol>
+      <p class="aviso ciano" id="rodada-aviso" hidden></p>
+      <div class="cols" id="rodada-cols">
+        <section><h4>Histórico<span class="micro" id="hist-cab"></span></h4><div class="regua"></div><ol class="lista hist" id="hist"></ol></section>
+        <section><h4>Atividade<span class="micro" id="ativ-cab"></span></h4><div class="regua"></div><ol class="lista ativ" id="ativ"></ol></section>
+      </div>
+    </div>
+
+    <div class="bloco" data-nao="vazio ilegivel fase">
       <div class="cab"><h3>Etapas</h3><span class="micro" id="plano-cab"></span></div>
       <div class="regua"></div>
       <ol class="etapas" id="etapas"></ol>
@@ -231,6 +329,7 @@ const E={
   concluida:{p:'Clear',d:'todas com prova',selo:'ok'},
   vazio:{p:'Em espera',d:'nenhuma execução',selo:'ponto'},
   ilegivel:{p:'Falha',d:'estado ilegível',selo:'alerta'},
+  fase:{p:'—',d:'antes da execução',selo:'seta'},
 };
 function selo(tipo){
   const g=$('selo');g.innerHTML='';
@@ -336,7 +435,7 @@ function features(fs){
 }
 function aba(tipo,e){
   // favicon: um arco por etapa em volta de um V; feitas na cor do estado, a atual meio acesa
-  const cor={rodando:'#5fd08a',concluida:'#5fd08a',pausada:'#f0c14b',travada:'#f07a62',ilegivel:'#f07a62',plano:'#5cc8e0'}[tipo]||'#8a8a8a';
+  const cor=(D.perguntas||[]).length&&piscar?'#ff4d00':{rodando:'#ff4d00',concluida:'#ff4d00',pausada:'#f0c14b',travada:'#eeeeee',ilegivel:'#eeeeee',plano:'#ff4d00'}[tipo]||((D.perguntas||[]).length?'#ff4d00':'#8a8a8a');
   const n=e?e.etapas.length:0,f=e?e.etapas.filter(x=>x.status==='feita').length:0,r=12.5;
   const p=d=>[16+r*Math.cos(d*Math.PI/180),16+r*Math.sin(d*Math.PI/180)].map(v=>v.toFixed(2)).join(' ');
   let arcos=n?'':`<circle cx="16" cy="16" r="${r}" stroke="#ffffff30" stroke-width="3.4" fill="none"/>`;
@@ -350,7 +449,9 @@ function aba(tipo,e){
   const barra='▰'.repeat(cheios)+'▱'.repeat(b-cheios);
   const t={rodando:`${barra} ${f}/${n}`,pausada:`‖ pausada ${f}/${n}`,travada:`✕ travada na ${pend?pad(pend.id):'—'}`,
     concluida:'✓ concluída',plano:'◇ plano aguardando',ilegivel:'⚠ estado ilegível'}[tipo];
+  const q=(D.perguntas||[]).length;
   document.title=`${D.projeto}${t?' '+t:''} · Vesta`;
+  if(q)document.title=`● pergunta · ${D.projeto} · Vesta`;
 }
 function render(){
   const tipo=D.momento.tipo,e=D.estado,m=E[tipo];document.body.dataset.estado=tipo;
@@ -358,11 +459,12 @@ function render(){
   document.querySelectorAll('[data-nao]').forEach(x=>x.hidden=x.dataset.nao.split(' ').includes(tipo));
   $('projeto').textContent=D.projeto;$('caminho').textContent=D.caminho;aba(tipo,e);
   $('plano-nome').textContent=e?e.plano.split('/').pop():'—';
-  $('palavra').textContent=m.p;$('desc').textContent=m.d;$('obs').textContent=D.momento.texto;selo(m.selo);
+  $('palavra').textContent=tipo==='fase'?D.momento.fase:m.p;$('desc').textContent=m.d;$('obs').textContent=D.momento.texto;selo(m.selo);
   const pend=e&&e.etapas.find(x=>x.status!=='feita');
-  $('chip').textContent=tipo==='plano'?'Plano':tipo==='concluida'?`${e.etapas.length} / ${e.etapas.length}`:pend?'Etapa '+pad(pend.id):tipo==='ilegivel'?'Estado':'Livre';
+  $('chip').textContent=tipo==='fase'?'Rodada':tipo==='plano'?'Plano':tipo==='concluida'?`${e.etapas.length} / ${e.etapas.length}`:pend?'Etapa '+pad(pend.id):tipo==='ilegivel'?'Estado':'Livre';
   if(D.erro)$('erro').textContent='Estado ilegível · '+D.erro+' · o resto do painel continua valendo';
-  etapas(e,tipo);features(D.features||[]);trilha();colunas(D.tempos||{});
+  const eb=$('etapas').closest('.bloco'),ro=$('rodada');if(e&&eb.nextElementSibling!==ro)eb.after(ro);if(!e&&ro.nextElementSibling!==eb)eb.before(ro);
+  etapas(e,tipo);rodada(D.rodada);pergunta(D.perguntas||[]);document.body.classList.toggle('perguntando',!!(D.perguntas||[]).length);features(D.features||[]);trilha();colunas(D.tempos||{});
   const s=D.sessao;document.body.classList.toggle('sessao-off',!s);$('aviso-sessao').hidden=!!s;
   if(s){arco(s);pontos(s.entrada);ferr(s.ferramentas);
     $('dur').innerHTML=`${Math.floor(s.duracao_s/60)}:${pad(s.duracao_s%60)}<small>MIN</small>`;
@@ -371,10 +473,68 @@ function render(){
     $('n-saida').textContent=k(s.saida)+' saída'}
   if(!aberto){const f=feature();const d=f&&['plano','spec','research'].find(x=>f[x]);if(d)abrir(d)}
 }
+const NOMES={ativacao:'Ativação',spec:'Spec',pesquisa:'Pesquisa',grill:'Grill',mockup:'Mockup',plano:'Plano',execucao:'Execução',concluida:'Concluída'};
+function rodada(r){
+  const aviso=$('rodada-aviso'),cols=$('rodada-cols');
+  $('rodada-cab').textContent=r&&r.sessoes&&r.sessoes.length?`${r.sessoes.length} ${r.sessoes.length>1?'sessões costuradas':'sessão'} // desde ${r.inicio}`:'';
+  const ol=$('fases');ol.innerHTML='';
+  (r&&r.fases||Object.keys(NOMES).map(f=>({id:f,estado:'pendente'}))).forEach(f=>{
+    const li=document.createElement('li');li.className=f.estado;
+    const sub={feita:f.hora,atual:'agora'+(f.hora?' · '+f.hora:''),pulada:'pulada',pendente:'—'}[f.estado];
+    li.innerHTML=`<b>${NOMES[f.id]}</b><span class="micro">${esc(sub)}</span>`;
+    if(f.estado==='atual')li.setAttribute('aria-current','step');ol.append(li)});
+  const msg={sem:'Sem registro de sessão · a rodada aparece quando a Vesta for ativada neste projeto',
+    desconhecido:'Registro em formato desconhecido · fase, histórico e atividade fora do ar · responder pelo painel continua',
+    nenhuma:'Nenhuma rodada nesta sessão · ative a Vesta para acompanhar daqui'}[r?r.formato:'sem'];
+  aviso.hidden=!msg;if(msg)aviso.textContent=msg;cols.hidden=!!msg;
+  if(msg)return;
+  $('hist-cab').textContent=`${r.historico.filter(h=>h.tipo!=='mensagem').length} perguntas`;
+  $('ativ-cab').textContent=`${r.atividade.length} de ${r.n_atividade}`;
+  const h=$('hist');h.innerHTML='';
+  r.historico.forEach(x=>{const li=document.createElement('li');
+    if(x.tipo==='mensagem'){li.innerHTML=`<div class="meta-h"><span class="micro">${esc(x.hora)} · vesta</span></div><p class="msg">${esc(x.texto)}</p>`}
+    else{li.className=x.resposta==null?'pend':'';
+      const r2=x.resposta==null?`<div class="r">esperando resposta</div>`:x.livre?`<div class="r livre-r">${esc(x.resposta)}<em>livre</em></div>`:`<div class="r">${esc(x.resposta)}</div>`;
+      li.innerHTML=`<div class="meta-h"><span class="micro">${esc(x.hora)}</span><span class="chip vazado">${esc(x.header)}</span>${x.onde?`<span class="micro">via ${esc(x.onde)}</span>`:''}</div><p class="q">${esc(x.pergunta)}</p>${r2}`}
+    h.append(li)});
+  const a=$('ativ');a.innerHTML='';
+  r.atividade.forEach(x=>{const li=document.createElement('li');
+    li.innerHTML=`<span class="h">${esc(x.hora)}</span><span class="f">${esc(x.ferramenta)}</span><span class="a">${esc(x.alvo)}</span>`;a.append(li)});
+}
+let piscar=false,atual=null;
+function pergunta(ps){
+  const f=$('pergunta');f.hidden=!ps.length;if(!ps.length){atual=null;return}
+  const p=ps[0],q=p.questions[0];
+  $('p-fila').textContent=ps.length>1?`1 de ${ps.length} na fila`:'';
+  $('p-origem').textContent=p.knobler?'também no Knobler · vale a primeira resposta':'só no painel';
+  if(atual===p.id){if(p.estado==='outro')status('outro');return}atual=p.id;
+  $('p-header').textContent=q.header;$('p-texto').textContent=q.question;$('p-livre').value='';
+  const tipo=q.multiSelect?'checkbox':'radio';
+  $('p-opcoes').innerHTML=q.options.map((o,i)=>`<label class="opcao"><input type="${tipo}" name="op" value="${esc(o.label)}"${i===0&&!q.multiSelect?' checked':''}><b>${esc(o.label)}</b><span>${esc(o.description)}</span></label>`).join('');
+  $('p-ajuda').textContent=q.multiSelect?'Marque quantas quiser. Escrever aqui substitui as marcadas.':'Escrever aqui substitui a opção marcada.';
+  status(p.estado||'');
+}
+function status(s){
+  const st=$('p-status'),b=$('p-enviar');st.className='status-p';b.disabled=false;b.textContent='Responder';
+  if(s==='enviando'){st.textContent='enviando…';b.disabled=true}
+  if(s==='erro'){st.classList.add('erro');st.textContent='Não chegou à sessão: o painel perdeu a conexão. Tente de novo; se persistir, responda no terminal.'}
+  if(s==='outro'){st.classList.add('ok');st.textContent='Respondida no Knobler · saindo da tela';b.disabled=true}
+  if(s==='vazio'){st.classList.add('erro');st.textContent='Marque uma opção ou escreva uma resposta.'}
+}
+$('pergunta').onsubmit=async ev=>{ev.preventDefault();
+  const marc=[...document.querySelectorAll('#p-opcoes input:checked')].map(i=>i.value),livre=$('p-livre').value.trim();
+  if(!marc.length&&!livre)return status('vazio');
+  const p=D.perguntas[0];status('enviando');
+  try{const r=await fetch(`/resposta/${encodeURIComponent(p.id)}`,{method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({answers:{[p.questions[0].question]:{labels:marc,text:livre}}})});
+    if(!r.ok)throw new Error(r.status);puxar()}catch(_){status('erro')}};
+setInterval(()=>{if(D&&(D.perguntas||[]).length){piscar=!piscar;aba(D.momento.tipo,D.estado)}},900);
+
 async function puxar(){try{const r=await fetch('/estado');if(r.ok){D=await r.json();visto=Date.now();render()}}catch(_){}}
 setInterval(()=>{$('idade').textContent=visto?`há ${Math.round((Date.now()-visto)/1000)} s`:'—'},1000);
 document.querySelectorAll('.trilha button').forEach(b=>b.onclick=()=>abrir(b.dataset.doc));
 puxar();setInterval(puxar,3000);
+
 </script>
 </body>
 </html>

@@ -27,6 +27,8 @@ GRILL = '## Decisões do grill'
 FASES = ['ativacao', 'spec', 'pesquisa', 'grill', 'mockup', 'plano', 'execucao', 'concluida']
 MARCO = re.compile(r'(?:skills/vesta|vesta/skill)/(spec|research|grill|mockup|plano|execucao)\.md')
 FASE_DO_MARCO = {'research': 'pesquisa'}
+NOMES_FASE = {'ativacao': 'Ativação', 'spec': 'Spec', 'pesquisa': 'Pesquisa', 'grill': 'Grill',
+              'mockup': 'Mockup', 'plano': 'Plano', 'execucao': 'Execução', 'concluida': 'Concluída'}
 PRAZO_ABERTO, PRAZO_ABANDONO, PRAZO_OUTRO = 10, 15, 5
 ALVOS = ('file_path', 'command', 'pattern', 'url', 'query', 'description', 'skill')
 
@@ -311,11 +313,15 @@ def dados(r):
     atual = (feature_do_plano(fs, e['plano']) if e else None) or (fs[0] if fs else None)
     casa = os.path.expanduser('~')
     caminho = '~' + r[len(casa):] if r.startswith(casa + os.sep) else r
-    return {'projeto': os.path.basename(r), 'caminho': caminho,
-            'momento': {'tipo': 'ilegivel', 'texto': 'Estado ilegível'} if erro else momento(e),
+    rod = rodada(r)
+    m = {'tipo': 'ilegivel', 'texto': 'Estado ilegível'} if erro else momento(e)
+    if m['tipo'] == 'vazio' and rod.get('fases'):
+        i = next(i for i, f in enumerate(rod['fases']) if f['estado'] == 'atual')
+        m = {'tipo': 'fase', 'fase': NOMES_FASE[FASES[i]], 'texto': f'Fase {i + 1} de 8'}
+    return {'projeto': os.path.basename(r), 'caminho': caminho, 'momento': m,
             'estado': e, 'erro': erro, 'features': fs, 'atual': atual,
             'tempos': tempo_etapas(r, e) if e else {}, 'sessao': sessao(r),
-            'rodada': rodada(r)}
+            'rodada': rod}
 
 
 def servir(r, porta):
